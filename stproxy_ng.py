@@ -28,7 +28,7 @@ import json
 import datetime
 
 
-def parse_args():
+def parse_args(commandline):
     parser = argparse.ArgumentParser(
         description='This software allows you to run a stratum mining proxy.')
     parser.add_argument(
@@ -143,15 +143,13 @@ def parse_args():
         dest='log_file',
         type=str,
         help='Log to specified file')
-    return parser.parse_args()
-
-from stratum import settings
-settings.LOGLEVEL = 'INFO'
+    return parser.parse_args(commandline)
 
 if __name__ == '__main__':
+    from stratum import settings
     # We need to parse args & setup Stratum environment
     # before any other imports
-    args = parse_args()
+    args = parse_args(sys.argv[1:])
     if args.quiet:
         settings.DEBUG = False
         settings.LOGLEVEL = 'WARNING'
@@ -161,7 +159,7 @@ if __name__ == '__main__':
     if args.log_file:
         settings.LOGFILE = args.log_file
 
-from twisted.internet import reactor, defer
+from twisted.internet import reactor, defer, task
 from stratum.socket_transport import SocketTransportFactory, SocketTransportClientFactory
 from stratum.services import ServiceEventHandler
 from twisted.web.server import Site
@@ -172,7 +170,7 @@ from mining_libs import jobs
 from mining_libs import version
 from mining_libs import utils
 from mining_libs import share_stats
-import zmq
+from mining_libs import stratum_control
 import stratum.logger
 
 
@@ -181,7 +179,7 @@ class StratumServer():
     log = None
     backup = None
 
-    def __init__(self, args, st_listen):
+    def __init__(self, args, st_listen, st_control):
         if args.pid_file:
             fp = file(args.pid_file, 'w')
             fp.write(str(os.getpid()))
@@ -198,35 +196,16 @@ class StratumServer():
             args.custom_password,
             timeout=args.pool_timeout)
         stp.connect()
-        self.z = zmq.Context()
-        self.control = threading.Thread(
-            target=self.control,
-            args=[
-                stp,
-                st_listen,
-                args.control_listen,
-                args.control_port,
-                self.z])
-        self.watcher = threading.Thread(
-            target=self.watcher,
-            args=[
-                stp,
-                st_listen])
-        self.control.daemon = True
-        self.watcher.daemon = True
-        self.control.start()
-        self.watcher.start()
+        w = task.LoopingCall(self.watcher, stp, st_listen)
+        w.start(10.0)
         # Setup stratum listener
         if args.stratum_port > 0:
             st_listen.StratumProxyService._set_stratum_proxy(stp)
             st_listen.StratumProxyService._set_sharestats_module(
                 args.sharestats_module)
-            reactor_listen = reactor.listenTCP(
-                args.stratum_port,
-                SocketTransportFactory(
-                    debug=False,
-                    event_handler=ServiceEventHandler),
-                interface=args.stratum_host)
+            self.stf = SocketTransportFactory(
+                debug=False,
+                event_handler=ServiceEventHandler)
             reactor.addSystemEventTrigger(
                 'before',
                 'shutdown',
@@ -235,6 +214,14 @@ class StratumServer():
             self.log.warning(
                 "PROXY IS LISTENING ON ALL IPs ON PORT %d (stratum)" %
                 (args.stratum_port))
+        if args.control_port > 0:
+            st_control.StratumControlService._set_stratum_proxy(stp)
+            reactor_control = reactor.listenTCP(
+                args.control_port,
+                SocketTransportFactory(
+                    debug=True,
+                    event_handler=ServiceEventHandler),
+                interface=args.control_listen)
 
     def on_shutdown(self, f):
         self.shutdown = True
@@ -242,157 +229,59 @@ class StratumServer():
         self.log.info("Shutting down proxy...")
         # Don't let stratum factory to reconnect again
         f.is_reconnecting = False
-        self.z.destroy()
-        self.control.join(5.0)
-        self.watcher.join(5.0)
-        time.sleep(1)
-        for thread in threading.enumerate():
-            if thread.isAlive():
-                try:
-                    thread._Thread__stop()
-                except:
-                    self.log.error('Thread could not be terminated')
-
-    def control(self, stp, stl, listen, port, z):
-        s = z.socket(zmq.REP)
-        self.log.info("Control port is %s" % port)
-        listening = False
-        rm_shares = {}
-        while not listening:
-            try:
-                s.bind("tcp://%s:%s" % (listen, port))
-                listening = True
-            except:
-                self.log.error(
-                    "Cannot listen to control port %s. Retrying in 10 seconds" %
-                    port)
-                time.sleep(10)
-
-        while not self.shutdown:
-            msg = s.recv()
-            self.log.info("Control message received: %s" % msg)
-            response = {}
-            try:
-                jmsg = json.loads(msg)
-                query = jmsg['query']
-            except Exception as e:
-                self.log.error("Cannot decode message: %s (%s)" % (msg, e))
-                jmsg = "{}"
-                query = None
-                response['exception'] = e.__str__()
-
-            response['error'] = True
-            if query == "ping":
-                response['error'] = False
-
-            if query == 'setpool':
-                host = jmsg['host'] if 'host' in jmsg else None
-                port = jmsg['port'] if 'port' in jmsg else None
-                user = jmsg['user'] if 'user' in jmsg else None
-                passw = jmsg['passw'] if 'passw' in jmsg else None
-                if host and port and user and passw:
-                    stp.reconnect(
-                        host=host,
-                        port=int(port),
-                        user=user,
-                        passw=passw)
-                    response['error'] = False
-                elif host and port and user:
-                    stp.reconnect(host=host, port=int(port), user=user)
-                    response['error'] = False
-                elif host and port:
-                    stp.reconnect(host=host, port=int(port))
-                    response['error'] = False
-
-            if query == 'setbackup':
-                host = jmsg['host'] if 'host' in jmsg else None
-                port = jmsg['port'] if 'port' in jmsg else None
-                if host and port:
-                    self.log.info(
-                        "Setting new backup pool: %s:%s" %
-                        (host, port))
-                    self.backup = [host, int(port)]
-                    stp.backup = [host, int(port)]
-                    response['error'] = False
-
-            if query == "getshares":
-                shares = {}
-                for sh in stp.sharestats.shares.keys():
-                    acc, rej = stp.sharestats.shares[sh]
-                    if acc + rej > 0:
-                        shares[sh] = {'accepted': acc, 'rejected': rej}
-                self.log.debug('Shares sent: %s' % shares)
-                response['shares'] = shares
-                response['error'] = False
-                for sh in shares.keys():
-                    if sh in rm_shares:
-                        rm_shares[sh]['accepted'] += shares[sh]['accepted']
-                        rm_shares[sh]['rejected'] += shares[sh]['rejected']
-                    else:
-                        rm_shares[sh] = shares[sh]
-
-            if query == 'cleanshares':
-                self.log.debug('Shares to remove: %s' % rm_shares)
-                for sh in rm_shares.keys():
-                    stp.sharestats.shares[sh][0] -= rm_shares[sh]['accepted']
-                    stp.sharestats.shares[sh][1] -= rm_shares[sh]['rejected']
-                rm_shares = {}
-                response['error'] = False
-
-            s.send(json.dumps(response, ensure_ascii=True))
 
     def watcher(self, stp, stl):
         # counter for number of watcher iterations with clients connected
         it_with_clients = 0
-        while not self.shutdown:
-            conn = stl.MiningSubscription.get_num_connections()
-            last_job_secs = stp.sharestats.get_last_job_secs()
-            notify_time = stp.cservice.get_last_notify_secs()
-            total_jobs = stp.sharestats.rejected_jobs + \
-                stp.sharestats.accepted_jobs
-            if total_jobs == 0:
-                total_jobs = 1
-            rejected_ratio = float(
-                (stp.sharestats.rejected_jobs * 100) / total_jobs)
-            accepted_ratio = float(
-                (stp.sharestats.accepted_jobs * 100) / total_jobs)
-            self.log.info(
-                'Last Job/Notify: %ss/%ss | Accepted:%s%% Rejected:%s%% | Clients: %s | Pool: %s (diff:%s backup:%s)' %
-                (last_job_secs,
-                 notify_time,
-                 accepted_ratio,
-                 rejected_ratio,
-                 conn,
-                 stp.host,
-                 stp.jobreg.difficulty,
-                 stp.using_backup))
+        #while not self.shutdown:
+        conn = stl.MiningSubscription.get_num_connections()
+        last_job_secs = stp.sharestats.get_last_job_secs()
+        notify_time = stp.cservice.get_last_notify_secs()
+        total_jobs = stp.sharestats.rejected_jobs + \
+            stp.sharestats.accepted_jobs
+        if total_jobs == 0:
+            total_jobs = 1
+        rejected_ratio = float(
+            (stp.sharestats.rejected_jobs * 100) / total_jobs)
+        accepted_ratio = float(
+            (stp.sharestats.accepted_jobs * 100) / total_jobs)
+        self.log.info(
+            'Last Job/Notify: %ss/%ss | Accepted:%s%% Rejected:%s%% | Clients: %s | Pool: %s (diff:%s backup:%s)' %
+            (last_job_secs,
+             notify_time,
+             accepted_ratio,
+             rejected_ratio,
+             conn,
+             stp.host,
+             stp.jobreg.difficulty,
+             stp.using_backup))
 
-            if notify_time > stp.pool_timeout or (
-                    it_with_clients > 6 and last_job_secs > 360):
-                if self.backup:
-                    self.log.error(
-                        'Detected problem with current pool, configuring backup')
-                    stp.reconnect(
-                        host=self.backup[0],
-                        port=int(
-                            self.backup[1]))
-                    stp.using_backup = True
-                else:
-                    self.log.error(
-                        'Detected problem with current pool, reconnecting')
-                    stp.reconnect()
-                notify_time = 0
-                last_job_secs = 0
-                it_with_clients = 0
-
-            time.sleep(10)
-            if conn > 0:
-                it_with_clients += 1
-                if it_with_clients > 65536:
-                    it_with_clients = 7
+        if notify_time > stp.pool_timeout or (
+                it_with_clients > 6 and last_job_secs > 360):
+            if stp.backup:
+                self.log.error(
+                    'Detected problem with current pool, configuring backup')
+                '''
+                stp.reconnect(
+                    host=stp.backup[0],
+                    port=int(
+                        stp.backup[1]))
+                stp.using_backup = True
+                '''
             else:
-                it_with_clients = 0
+                self.log.error(
+                    'Detected problem with current pool, reconnecting')
+                #stp.reconnect()
+            notify_time = 0
+            last_job_secs = 0
+            it_with_clients = 0
 
+        if conn > 0:
+            it_with_clients += 1
+            if it_with_clients > 65536:
+                it_with_clients = 7
+        else:
+            it_with_clients = 0
 
 class StratumProxy():
     f = None
@@ -520,5 +409,9 @@ class StratumProxy():
 
 
 if __name__ == '__main__':
-    ss = StratumServer(args, stratum_listener)
+    ss = StratumServer(args, stratum_listener, stratum_control)
+    reactor_listen = reactor.listenTCP(
+        args.stratum_port,
+        ss.stf,
+        interface=args.stratum_host)
     reactor.run()

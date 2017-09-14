@@ -1,7 +1,6 @@
-import zmq
 import sys
 import json
-
+import socket
 
 def niceprint(data):
     return json.dumps(
@@ -18,17 +17,43 @@ if len(sys.argv) < 3:
         sys.argv[0])
     sys.exit(1)
 
-context = zmq.Context()
-socket = context.socket(zmq.REQ)
-socket.connect("tcp://%s" % sys.argv[1])
-msg = {'query': sys.argv[2]}
+d = {}
 
 for a in sys.argv[3::]:
-    k, v = a.split('=')
-    msg[k] = v
+    k, v = a.split('=', 1)
+    d[k] = v
 
-print("< %s" % msg)
-socket.send(json.dumps(msg))
-reply = json.loads(socket.recv())
-print("> %s" % niceprint(reply))
-context.destroy()
+if sys.argv[2] == 'setpool':
+    l = [ d['host'], d['port'], d['user'], d['pass'] ]
+    msg = {'id': 1234, 'method': 'control.' + 'set_pool', 'params': l}
+    print msg
+elif sys.argv[2] == 'setbackup':
+    l = [ d['host'], d['port'] ]
+    msg = {'id': 1234, 'method': 'control.' + 'set_backup', 'params': l}
+    print msg
+elif sys.argv[2] == 'getshares':
+    l = []
+    msg = {'id': 1234, 'method': 'control.' + 'get_shares', 'params': l}
+    print msg
+elif sys.argv[2] == 'cleanshares':
+    l = []
+    msg = {'id': 1234, 'method': 'control.' + 'clean_shares', 'params': l}
+    print msg
+else:
+    msg = {}
+    pass
+
+print niceprint(msg)
+serial = json.dumps(msg)
+print serial
+
+ip, port = sys.argv[1].split(':')
+print ip,port
+
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.connect((ip, int(port)))
+s.send(serial+'\n')
+resp = s.recv(1024)
+s.close
+
+print resp

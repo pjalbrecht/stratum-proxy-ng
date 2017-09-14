@@ -4,6 +4,7 @@ import stratum.logger
 import subprocess
 import threading
 log = stratum.logger.get_logger('proxy')
+from stratum_control import ShareSubscription
 
 
 class ShareStats(object):
@@ -38,6 +39,8 @@ class ShareStats(object):
             self.on_share = do_nothing
 
     def register_job(self, job_id, worker_name, dif, accepted, sharenotify):
+        ShareSubscription.emit(job_id, worker_name, dif, accepted)
+        log.info("registering job: job_id = %s, worker_name = %s, dif = %s, accepted = %s" % (job_id, worker_name, dif, accepted))
         if self.accepted_jobs + self.rejected_jobs >= 65535:
             self.accepted_jobs = 0
             self.rejected_jobs = 0
