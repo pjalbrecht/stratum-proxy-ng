@@ -9,6 +9,8 @@ from jobs import JobRegistry
 import stratum.logger
 log = stratum.logger.get_logger('proxy')
 
+from stratum_control import ShareSubscription
+
 
 class UpstreamServiceException(ServiceException):
     code = -2
@@ -148,7 +150,6 @@ class StratumProxyService(GenericService):
     service_type = 'mining'
     service_vendor = 'mining_proxy'
     is_default = True
-    use_sharenotify = False
     stp = None  # Reference to StratumProxy instance
 
     @classmethod
@@ -158,12 +159,6 @@ class StratumProxyService(GenericService):
     @classmethod
     def _get_stratum_proxy(cls):
         return cls.stp
-
-    @classmethod
-    def _set_sharestats_module(cls, module):
-        if module is not None and len(module) > 1:
-            cls.use_sharenotify = True
-            cls.stp.sharestats.set_module(module)
 
     @defer.inlineCallbacks
     def authorize(self, worker_name, worker_password, *args):
@@ -226,7 +221,7 @@ class StratumProxyService(GenericService):
 
         worker_name = client.auth[0]
 
-        start = time.time()
+        self.stp.last_job_time = start = time.time()
         # We got something from pool, reseting client_service timeout
 
         try:
@@ -243,12 +238,8 @@ class StratumProxyService(GenericService):
                  worker_name,
                  difficulty,
                  str(exc)))
-            self.stp.sharestats.register_job(
-                job_id,
-                origin_worker_name,
-                difficulty,
-                False,
-                self.use_sharenotify)
+            ShareSubscription.emit(job_id, worker_name, difficulty, False)
+            self.stp.rejected_jobs += 1
             client.reset_timeout()
             raise SubmitException(*exc.args)
 
@@ -259,12 +250,8 @@ class StratumProxyService(GenericService):
              origin_worker_name,
              worker_name,
              difficulty))
-        self.stp.sharestats.register_job(
-            job_id,
-            origin_worker_name,
-            difficulty,
-            True,
-            self.use_sharenotify)
+        ShareSubscription.emit(job_id, worker_name, difficulty, True)
+        self.stp.accepted_jobs += 1
         defer.returnValue(result)
 
     def get_transactions(self, *args):

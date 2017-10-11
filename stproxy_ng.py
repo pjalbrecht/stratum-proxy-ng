@@ -18,158 +18,18 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import argparse
 import time
-import os
-import sys
-import socket
-import threading
-import json
-import datetime
-
-
-def parse_args(commandline):
-    parser = argparse.ArgumentParser(
-        description='This software allows you to run a stratum mining proxy.')
-    parser.add_argument(
-        '-o',
-        '--host',
-        dest='host',
-        type=str,
-        default=None,
-        help='Hostname of Stratum mining pool')
-    parser.add_argument(
-        '-p',
-        '--port',
-        dest='port',
-        type=int,
-        default=3333,
-        help='Port of Stratum mining pool')
-    parser.add_argument(
-        '-sh',
-        '--stratum-host',
-        dest='stratum_host',
-        type=str,
-        default='0.0.0.0',
-        help='On which network interface listen for stratum miners. Use "localhost" for listening on internal IP only.')
-    parser.add_argument(
-        '-sp',
-        '--stratum-port',
-        dest='stratum_port',
-        type=int,
-        default=3333,
-        help='Port on which port listen for stratum miners.')
-    parser.add_argument(
-        '-cs',
-        '--custom-stratum',
-        dest='custom_stratum',
-        type=str,
-        help='Override URL provided in X-Stratum header')
-    parser.add_argument(
-        '-cu',
-        '--custom-user',
-        dest='custom_user',
-        type=str,
-        help='Use this username for submitting shares')
-    parser.add_argument(
-        '-cp',
-        '--custom-password',
-        dest='custom_password',
-        type=str,
-        help='Use this password for submitting shares')
-    parser.add_argument(
-        '-xp',
-        '--control-port',
-        dest='control_port',
-        type=int,
-        default=3999,
-        help='Control port')
-    parser.add_argument(
-        '--control-listen',
-        dest='control_listen',
-        type=str,
-        default="127.0.0.1",
-        help='Control port bind address')
-    parser.add_argument(
-        '--dirty-ping',
-        dest='dirty_ping',
-        action='store_true',
-        help='Use dirty ping method to check if the pool is alive (not recommended).')
-    parser.add_argument(
-        '--timeout',
-        dest='pool_timeout',
-        type=int,
-        default=120,
-        help='Set pool timeout (in seconds).')
-    parser.add_argument(
-        '--blocknotify',
-        dest='blocknotify_cmd',
-        type=str,
-        default='',
-        help='Execute command when the best block changes (%%s in BLOCKNOTIFY_CMD is replaced by block hash)')
-    parser.add_argument(
-        '--sharenotify',
-        dest='sharestats_module',
-        type=str,
-        default=None,
-        help='Execute a python snippet when a share is accepted. Use absolute path (i.e /root/snippets/log.py)')
-    parser.add_argument(
-        '--socks',
-        dest='proxy',
-        type=str,
-        default='',
-        help='Use socks5 proxy for upstream Stratum connection, specify as host:port')
-    parser.add_argument(
-        '-v',
-        '--verbose',
-        dest='verbose',
-        action='store_true',
-        help='Enable low-level debugging messages')
-    parser.add_argument(
-        '-q',
-        '--quiet',
-        dest='quiet',
-        action='store_true',
-        help='Make output more quiet')
-    parser.add_argument(
-        '-i',
-        '--pid-file',
-        dest='pid_file',
-        type=str,
-        help='Store process pid to the file')
-    parser.add_argument(
-        '-l',
-        '--log-file',
-        dest='log_file',
-        type=str,
-        help='Log to specified file')
-    return parser.parse_args(commandline)
-
-if __name__ == '__main__':
-    from stratum import settings
-    # We need to parse args & setup Stratum environment
-    # before any other imports
-    args = parse_args(sys.argv[1:])
-    if args.quiet:
-        settings.DEBUG = False
-        settings.LOGLEVEL = 'WARNING'
-    elif args.verbose:
-        settings.DEBUG = True
-        settings.LOGLEVEL = 'DEBUG'
-    if args.log_file:
-        settings.LOGFILE = args.log_file
 
 from twisted.internet import reactor, defer, task
 from stratum.socket_transport import SocketTransportFactory, SocketTransportClientFactory
-from stratum.services import ServiceEventHandler
-from twisted.web.server import Site
 
+from stratum import settings
+from stratum.services import ServiceEventHandler
 from mining_libs import stratum_listener
 from mining_libs import client_service
 from mining_libs import jobs
 from mining_libs import version
 from mining_libs import utils
-from mining_libs import share_stats
 from mining_libs import stratum_control
 import stratum.logger
 
@@ -179,30 +39,24 @@ class StratumServer():
     log = None
     backup = None
 
-    def __init__(self, args, st_listen, st_control):
-        if args.pid_file:
-            fp = file(args.pid_file, 'w')
-            fp.write(str(os.getpid()))
-            fp.close()
-        self.log = stratum.logger.get_logger('proxy%s' % args.stratum_port)
+    def __init__(self, st_listen, st_control):
+        self.log = stratum.logger.get_logger('proxy%s' % settings.STRATUM_PORT)
         st_listen.log = stratum.logger.get_logger(
             'proxy%s' %
-            args.stratum_port)
+            settings.STRATUM_PORT)
         stp = StratumProxy(st_listen)
         stp.set_pool(
-            args.host,
-            args.port,
-            args.custom_user,
-            args.custom_password,
-            timeout=args.pool_timeout)
+            settings.POOL_HOST,
+            settings.POOL_PORT,
+            settings.POOL_USER,
+            settings.POOL_PASS,
+            timeout=settings.POOL_TIMEOUT)
         stp.connect()
         w = task.LoopingCall(self.watcher, stp, st_listen)
         w.start(10.0)
         # Setup stratum listener
-        if args.stratum_port > 0:
+        if settings.STRATUM_PORT > 0:
             st_listen.StratumProxyService._set_stratum_proxy(stp)
-            st_listen.StratumProxyService._set_sharestats_module(
-                args.sharestats_module)
             self.stf = SocketTransportFactory(
                 debug=False,
                 event_handler=ServiceEventHandler)
@@ -213,15 +67,15 @@ class StratumServer():
                 stp.f)
             self.log.warning(
                 "PROXY IS LISTENING ON ALL IPs ON PORT %d (stratum)" %
-                (args.stratum_port))
-        if args.control_port > 0:
+                (settings.STRATUM_PORT))
+        if settings.CONTROL_PORT > 0:
             st_control.StratumControlService._set_stratum_proxy(stp)
             reactor_control = reactor.listenTCP(
-                args.control_port,
+                settings.CONTROL_PORT,
                 SocketTransportFactory(
                     debug=True,
                     event_handler=ServiceEventHandler),
-                interface=args.control_listen)
+                interface=settings.CONTROL_HOST)
 
     def on_shutdown(self, f):
         self.shutdown = True
@@ -233,18 +87,17 @@ class StratumServer():
     def watcher(self, stp, stl):
         # counter for number of watcher iterations with clients connected
         it_with_clients = 0
-        #while not self.shutdown:
         conn = stl.MiningSubscription.get_num_connections()
-        last_job_secs = stp.sharestats.get_last_job_secs()
+        last_job_secs = int(time.time() - stp.last_job_time)
         notify_time = stp.cservice.get_last_notify_secs()
-        total_jobs = stp.sharestats.rejected_jobs + \
-            stp.sharestats.accepted_jobs
+        total_jobs = stp.rejected_jobs + \
+            stp.accepted_jobs
         if total_jobs == 0:
             total_jobs = 1
         rejected_ratio = float(
-            (stp.sharestats.rejected_jobs * 100) / total_jobs)
+            (stp.rejected_jobs * 100) / total_jobs)
         accepted_ratio = float(
-            (stp.sharestats.accepted_jobs * 100) / total_jobs)
+            (stp.accepted_jobs * 100) / total_jobs)
         self.log.info(
             'Last Job/Notify: %ss/%ss | Accepted:%s%% Rejected:%s%% | Clients: %s | Pool: %s (diff:%s backup:%s)' %
             (last_job_secs,
@@ -255,7 +108,6 @@ class StratumServer():
              stp.host,
              stp.jobreg.difficulty,
              stp.using_backup))
-
         if notify_time > stp.pool_timeout or (
                 it_with_clients > 6 and last_job_secs > 360):
             if stp.backup:
@@ -287,7 +139,9 @@ class StratumProxy():
     f = None
     jobreg = None
     cservice = None
-    sharestats = None
+    accepted_jobs = 0
+    rejected_jobs = 0
+    last_job_time = time.time()
     use_set_extranonce = False
     set_extranonce_pools = ['nicehash.com']
     disconnect_counter = 0
@@ -326,7 +180,6 @@ class StratumProxy():
         self.pool_timeout = timeout
         self.cservice.reset_timeout()
         self.cservice.auth = (user, passw)
-        self.sharestats = share_stats.ShareStats()
         self.cservice.f = self.f
         self.f.on_connect.addCallback(self.on_connect)
         self.f.on_disconnect.addCallback(self.on_disconnect)
@@ -406,12 +259,3 @@ class StratumProxy():
         self.stl.MiningSubscription.reconnect_all()
         self.disconnect_counter += 1
         return f
-
-
-if __name__ == '__main__':
-    ss = StratumServer(args, stratum_listener, stratum_control)
-    reactor_listen = reactor.listenTCP(
-        args.stratum_port,
-        ss.stf,
-        interface=args.stratum_host)
-    reactor.run()

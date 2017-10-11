@@ -38,29 +38,6 @@ class StratumControlService(GenericService):
           stp.backup = [host, int(port)]
           return True
 
-     def get_shares(self):
-          log.info("get shares.......")
-          stp = self._get_stratum_proxy()
-          shares = {}
-          for sh in stp.sharestats.shares.keys():
-              acc, rej = stp.sharestats.shares[sh]
-              log.info("shares sent......sh = %s acc = %s rej = %s" % (sh, acc, rej))
-              if acc + rej > 0:
-                  shares[sh] = {'accepted': acc, 'rejected': rej}
-          log.info('Shares sent: %s' % shares)
-          for sh in shares.keys():
-              if sh in rm_shares:
-                   rm_shares[sh]['accepted'] += shares[sh]['accepted']
-                   rm_shares[sh]['rejected'] += shares[sh]['rejected']
-              else:
-                   rm_shares[sh] = shares[sh]
-          return True
-
-     def clean_shares(self):
-          log.info("clean shares....")
-          stp = self._get_stratum_proxy()
-          return True
-
      @pubsub.subscribe
      def subscribe_share(self):
           return ShareSubscription()
