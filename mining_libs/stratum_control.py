@@ -31,13 +31,7 @@ class StratumControlService(GenericService):
                user=user,
                passw=passw)
           return True
-
-     def set_backup(self, host, port):
-          log.info("set backup.......%s %s" % (host, port))
-          stp = self._get_stratum_proxy()
-          stp.backup = [host, int(port)]
-          return True
-
+     
      @pubsub.subscribe
      def subscribe_share(self):
           return ShareSubscription()

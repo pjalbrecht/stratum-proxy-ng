@@ -16,11 +16,8 @@ class ClientMiningService(GenericEventHandler):
     job_registry = None  # Reference to JobRegistry instance
     timeout = None  # Reference to IReactorTime object
     f = None  # Factory of Stratum client
-    ping_sent = False
     controlled_disconnect = False
     auth = False
-    is_backup_active = False
-    use_dirty_ping = False
     authorized = None
     last_notify_time = None
 
@@ -40,19 +37,7 @@ class ClientMiningService(GenericEventHandler):
     @classmethod
     def reset_timeout(cls):
         cls.last_notify_time = datetime.datetime.now()
-
-    @classmethod
-    def on_ping_reply(cls, result):
-        cls.ping_sent = False
-        cls.reset_timeout()
-
-    @classmethod
-    def send_ping(cls):
-        log.info("Sending ping to pool")
-        d = cls.f.rpc('mining.ping', [])
-        d.addCallback(cls.on_ping_reply)
-        d.addErrback(cls.on_ping_reply)
-
+    
     @classmethod
     def _on_fail_authorized(self, resp, worker_name):
         log.exception("Cannot authorize worker '%s'" % worker_name)

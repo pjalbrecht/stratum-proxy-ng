@@ -37,7 +37,6 @@ import stratum.logger
 class StratumServer():
     shutdown = False
     log = None
-    backup = None
 
     def __init__(self, st_listen, st_control):
         self.log = stratum.logger.get_logger('proxy%s' % settings.STRATUM_PORT)
@@ -86,7 +85,6 @@ class StratumServer():
 
     def watcher(self, stp, stl):
         # counter for number of watcher iterations with clients connected
-        it_with_clients = 0
         conn = stl.MiningSubscription.get_num_connections()
         last_job_secs = int(time.time() - stp.last_job_time)
         notify_time = stp.cservice.get_last_notify_secs()
@@ -108,32 +106,6 @@ class StratumServer():
              stp.host,
              stp.jobreg.difficulty,
              stp.using_backup))
-        if notify_time > stp.pool_timeout or (
-                it_with_clients > 6 and last_job_secs > 360):
-            if stp.backup:
-                self.log.error(
-                    'Detected problem with current pool, configuring backup')
-                '''
-                stp.reconnect(
-                    host=stp.backup[0],
-                    port=int(
-                        stp.backup[1]))
-                stp.using_backup = True
-                '''
-            else:
-                self.log.error(
-                    'Detected problem with current pool, reconnecting')
-                #stp.reconnect()
-            notify_time = 0
-            last_job_secs = 0
-            it_with_clients = 0
-
-        if conn > 0:
-            it_with_clients += 1
-            if it_with_clients > 65536:
-                it_with_clients = 7
-        else:
-            it_with_clients = 0
 
 class StratumProxy():
     f = None
@@ -146,9 +118,7 @@ class StratumProxy():
     set_extranonce_pools = ['nicehash.com']
     disconnect_counter = 0
     pool_timeout = 0
-    backup = []
     using_backup = False
-    origin_pool = []
     connecting = False
 
     def __init__(self, stl):
@@ -176,7 +146,6 @@ class StratumProxy():
             event_handler=self.cservice)
         self.jobreg = jobs.JobRegistry(self.f, scrypt_target=True)
         self.cservice.job_registry = self.jobreg
-        self.cservice.use_dirty_ping = False
         self.pool_timeout = timeout
         self.cservice.reset_timeout()
         self.cservice.auth = (user, passw)
@@ -244,15 +213,6 @@ class StratumProxy():
             self.log.error(
                 "Uncontroled disconnect detected for pool %s:%d" %
                 self.f.main_host)
-            if self.backup and self.disconnect_counter > 1:
-                self.log.error(
-                    "Two or more connection lost, switching to backup pool: %s" %
-                    self.backup)
-                f.new_host = (self.backup[0], self.backup[1])
-                self.origin_pool = [self.host, self.port]
-                self.host = self.backup[0]
-                self.port = self.backup[1]
-                self.using_backup = True
         else:
             self.log.info("Controlled disconnect detected")
             self.cservice.controlled_disconnect = False

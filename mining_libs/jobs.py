@@ -1,10 +1,6 @@
 import binascii
 import time
 import struct
-import subprocess
-import weakref
-
-from twisted.internet import defer
 
 import utils
 
@@ -51,11 +47,6 @@ class Job(object):
         job.diff = diff
         return job
 
-    def increase_extranonce2(self):
-        self.extranonce2 += 1
-        return self.extranonce2
-
-
 class JobRegistry(object):
     tail_iterator = 0
     registered_tails = []
@@ -65,7 +56,6 @@ class JobRegistry(object):
 
     def __init__(self, f, scrypt_target=False):
         self.f = f
-        self.cmd = None  # execute this command on new block
         # calculate target for scrypt algorithm instead of sha256
         self.scrypt_target = scrypt_target
         self.jobs = []
@@ -80,23 +70,9 @@ class JobRegistry(object):
         self.set_difficulty(1)
         self.target1_hex = self.target_hex
 
-        # Relation between merkle and job
-        self.merkle_to_job = weakref.WeakValueDictionary()
-
-        # Hook for LP broadcasts
-        self.on_block = defer.Deferred()
-
         self.tail_iterator = 0
         self.registered_tails = []
-
-    def execute_cmd(self, prevhash):
-        if self.cmd:
-            return subprocess.Popen(
-                self.cmd.replace(
-                    '%s',
-                    prevhash),
-                shell=True)
-
+    
     def set_extranonce(self, extranonce1, extranonce2_size):
         self.extranonce2_size = extranonce2_size
         self.extranonce1_bin = binascii.unhexlify(extranonce1)
@@ -147,28 +123,6 @@ class JobRegistry(object):
 
         self.jobs.append(template)
         self.last_job = template
-
-        if clean_jobs:
-            # Force miners to reload jobs
-            on_block = self.on_block
-            self.on_block = defer.Deferred()
-            on_block.callback(True)
-
-            # blocknotify-compatible call
-            self.execute_cmd(template.prevhash)
-
-    def register_merkle(self, job, merkle_hash, extranonce2):
-        # merkle_to_job is weak-ref, so it is cleaned up automatically
-        # when job is dropped
-        self.merkle_to_job[merkle_hash] = job
-        job.merkle_to_extranonce2[merkle_hash] = extranonce2
-
-    def get_job_from_header(self, header):
-        '''Lookup for job and extranonce2 used for given blockheader (in hex)'''
-        merkle_hash = header[72:136].lower()
-        job = self.merkle_to_job[merkle_hash]
-        extranonce2 = job.merkle_to_extranonce2[merkle_hash]
-        return (job, extranonce2)
 
     def get_job_from_id(self, job_id):
         job = None
