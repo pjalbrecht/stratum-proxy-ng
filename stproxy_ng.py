@@ -51,8 +51,6 @@ class StratumServer():
             settings.POOL_PASS,
             timeout=settings.POOL_TIMEOUT)
         stp.connect()
-        w = task.LoopingCall(self.watcher, stp, st_listen)
-        w.start(10.0)
         # Setup stratum listener
         if settings.STRATUM_PORT > 0:
             st_listen.StratumProxyService._set_stratum_proxy(stp)
@@ -67,6 +65,7 @@ class StratumServer():
             self.log.warning(
                 "PROXY IS LISTENING ON ALL IPs ON PORT %d (stratum)" %
                 (settings.STRATUM_PORT))
+        # Setup control listener
         if settings.CONTROL_PORT > 0:
             st_control.StratumControlService._set_stratum_proxy(stp)
             reactor_control = reactor.listenTCP(
@@ -83,42 +82,13 @@ class StratumServer():
         # Don't let stratum factory to reconnect again
         f.is_reconnecting = False
 
-    def watcher(self, stp, stl):
-        # counter for number of watcher iterations with clients connected
-        conn = stl.MiningSubscription.get_num_connections()
-        last_job_secs = int(time.time() - stp.last_job_time)
-        notify_time = stp.cservice.get_last_notify_secs()
-        total_jobs = stp.rejected_jobs + \
-            stp.accepted_jobs
-        if total_jobs == 0:
-            total_jobs = 1
-        rejected_ratio = float(
-            (stp.rejected_jobs * 100) / total_jobs)
-        accepted_ratio = float(
-            (stp.accepted_jobs * 100) / total_jobs)
-        self.log.info(
-            'Last Job/Notify: %ss/%ss | Accepted:%s%% Rejected:%s%% | Clients: %s | Pool: %s (diff:%s backup:%s)' %
-            (last_job_secs,
-             notify_time,
-             accepted_ratio,
-             rejected_ratio,
-             conn,
-             stp.host,
-             stp.jobreg.difficulty,
-             stp.using_backup))
-
 class StratumProxy():
     f = None
     jobreg = None
     cservice = None
-    accepted_jobs = 0
-    rejected_jobs = 0
-    last_job_time = time.time()
     use_set_extranonce = False
     set_extranonce_pools = ['nicehash.com']
-    disconnect_counter = 0
     pool_timeout = 0
-    using_backup = False
     connecting = False
 
     def __init__(self, stl):
@@ -203,7 +173,6 @@ class StratumProxy():
 
         # Set controlled disconnect to False
         self.cservice.controlled_disconnect = False
-        self.disconnect_counter = 0
         defer.returnValue(f)
 
     def on_disconnect(self, f):
@@ -217,5 +186,4 @@ class StratumProxy():
             self.log.info("Controlled disconnect detected")
             self.cservice.controlled_disconnect = False
         self.stl.MiningSubscription.reconnect_all()
-        self.disconnect_counter += 1
         return f

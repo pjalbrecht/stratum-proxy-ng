@@ -221,7 +221,7 @@ class StratumProxyService(GenericService):
 
         worker_name = client.auth[0]
 
-        self.stp.last_job_time = start = time.time()
+        start = time.time()
         # We got something from pool, reseting client_service timeout
 
         try:
@@ -239,7 +239,6 @@ class StratumProxyService(GenericService):
                  difficulty,
                  str(exc)))
             ShareSubscription.emit(job_id, worker_name, difficulty, False)
-            self.stp.rejected_jobs += 1
             client.reset_timeout()
             raise SubmitException(*exc.args)
 
@@ -251,7 +250,6 @@ class StratumProxyService(GenericService):
              worker_name,
              difficulty))
         ShareSubscription.emit(job_id, worker_name, difficulty, True)
-        self.stp.accepted_jobs += 1
         defer.returnValue(result)
 
     def get_transactions(self, *args):

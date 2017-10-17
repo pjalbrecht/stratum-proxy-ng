@@ -4,8 +4,6 @@ import stratum.pubsub as pubsub
 import stratum.logger
 log = stratum.logger.get_logger('proxy')
 
-rm_shares = {}
-
 class ShareSubscription(pubsub.Subscription):
     event = 'control.share'
 
@@ -13,6 +11,7 @@ class StratumControlService(GenericService):
      service_type = 'control'
      service_vendor = 'mining_proxy'
      is_default = True
+     stp = None  # Reference to StratumProxy instance
 
      @classmethod
      def _set_stratum_proxy(cls, stp):
