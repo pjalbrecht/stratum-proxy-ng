@@ -1,11 +1,9 @@
-from twisted.internet import reactor
+#from twisted.internet import reactor
 
 from stratum.event_handler import GenericEventHandler
 from jobs import Job
 import utils
 import version as _version
-import time
-import datetime
 import stratum_listener
 
 import stratum.logger
@@ -14,52 +12,10 @@ log = stratum.logger.get_logger('proxy')
 
 class ClientMiningService(GenericEventHandler):
     job_registry = None  # Reference to JobRegistry instance
-    timeout = None  # Reference to IReactorTime object
     f = None  # Factory of Stratum client
-    controlled_disconnect = False
-    auth = False
-    authorized = None
-    last_notify_time = None
-
-    @classmethod
-    def set_controlled_disconnect(cls, c):
-        cls.controlled_disconnect = c
-
-    @classmethod
-    def get_last_notify_secs(cls):
-        s = 0
-        if cls.last_notify_time is not None:
-            s = int(
-                (datetime.datetime.now() -
-                 cls.last_notify_time).total_seconds())
-        return s
-
-    @classmethod
-    def reset_timeout(cls):
-        cls.last_notify_time = datetime.datetime.now()
-    
-    @classmethod
-    def _on_fail_authorized(self, resp, worker_name):
-        log.exception("Cannot authorize worker '%s'" % worker_name)
-        self.authorized = False
-
-    @classmethod
-    def _on_authorized(self, resp, worker_name):
-        log.info("Worker '%s' autorized by pool" % worker_name)
-        self.authorized = True
-
-    @classmethod
-    def authorize(self, worker_name, password):
-        self.authorized = None
-        d = self.f.rpc('mining.authorize', [worker_name, password])
-        d.addCallback(self._on_authorized, worker_name)
-        d.addErrback(self._on_fail_authorized, worker_name)
 
     def handle_event(self, method, params, connection_ref):
         '''Handle RPC calls and notifications from the pool'''
-        # Yay, we received something from the pool,
-        # let's restart the timeout.
-        self.reset_timeout()
 
         if method == 'mining.notify':
             '''Proxy just received information about new mining job'''
@@ -136,7 +92,6 @@ class ClientMiningService(GenericEventHandler):
             if port and port > 2:
                 new[1] = port
             log.info("Reconnecting to %s:%d" % tuple(new))
-            self.set_controlled_disconnect(True)
             self.f.reconnect(new[0], new[1], wait)
 
         elif method == 'mining.set_extranonce':

@@ -18,9 +18,7 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import time
-
-from twisted.internet import reactor, defer, task
+from twisted.internet import reactor, defer
 from stratum.socket_transport import SocketTransportFactory, SocketTransportClientFactory
 
 from stratum import settings
@@ -48,8 +46,7 @@ class StratumServer():
             settings.POOL_HOST,
             settings.POOL_PORT,
             settings.POOL_USER,
-            settings.POOL_PASS,
-            timeout=settings.POOL_TIMEOUT)
+            settings.POOL_PASS)
         stp.connect()
         # Setup stratum listener
         if settings.STRATUM_PORT > 0:
@@ -88,7 +85,6 @@ class StratumProxy():
     cservice = None
     use_set_extranonce = False
     set_extranonce_pools = ['nicehash.com']
-    pool_timeout = 0
     connecting = False
 
     def __init__(self, stl):
@@ -116,9 +112,7 @@ class StratumProxy():
             event_handler=self.cservice)
         self.jobreg = jobs.JobRegistry(self.f, scrypt_target=True)
         self.cservice.job_registry = self.jobreg
-        self.pool_timeout = timeout
-        self.cservice.reset_timeout()
-        self.cservice.auth = (user, passw)
+        self.auth = (user, passw)
         self.cservice.f = self.f
         self.f.on_connect.addCallback(self.on_connect)
         self.f.on_disconnect.addCallback(self.on_disconnect)
@@ -129,13 +123,12 @@ class StratumProxy():
         if port:
             self.port = int(port)
         self._detect_set_extranonce()
-        cuser, cpassw = self.cservice.auth
+        cuser, cpassw = self.auth
         if not user:
             user = cuser
         if not passw:
             passw = cpassw
-        self.cservice.auth = (user, passw)
-        self.cservice.controlled_disconnect = True
+        self.auth = (user, passw)
         self.log.info("Trying reconnection with pool")
         if not self.f.client:
             self.log.info("Client was not connected before!")
@@ -165,25 +158,16 @@ class StratumProxy():
         if self.use_set_extranonce:
             self.log.info("Enable extranonce subscription method")
             f.rpc('mining.extranonce.subscribe', [])
-
         self.log.warning(
             "Authorizing user %s, password %s" %
-            self.cservice.auth)
-        self.cservice.authorize(self.cservice.auth[0], self.cservice.auth[1])
+            self.auth)
+        f.rpc('mining.authorize', [self.auth[0], self.auth[1]])
 
         # Set controlled disconnect to False
-        self.cservice.controlled_disconnect = False
         defer.returnValue(f)
 
     def on_disconnect(self, f):
         '''Callback when proxy get disconnected from the pool'''
         f.on_disconnect.addCallback(self.on_disconnect)
-        if not self.cservice.controlled_disconnect:
-            self.log.error(
-                "Uncontroled disconnect detected for pool %s:%d" %
-                self.f.main_host)
-        else:
-            self.log.info("Controlled disconnect detected")
-            self.cservice.controlled_disconnect = False
         self.stl.MiningSubscription.reconnect_all()
         return f

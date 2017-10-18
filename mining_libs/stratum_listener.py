@@ -207,9 +207,9 @@ class StratumProxyService(GenericService):
             ntime,
             nonce,
             *args):
+        stp = self._get_stratum_proxy()
         f = self._get_stratum_proxy().f
         job = self._get_stratum_proxy().jobreg
-        client = self._get_stratum_proxy().cservice
 
         if f.client is None or not f.client.connected:
             raise SubmitException("Upstream not connected")
@@ -219,7 +219,7 @@ class StratumProxyService(GenericService):
         if tail is None:
             raise SubmitException("Connection is not subscribed")
 
-        worker_name = client.auth[0]
+        worker_name = stp.auth[0]
 
         start = time.time()
         # We got something from pool, reseting client_service timeout
@@ -228,7 +228,6 @@ class StratumProxyService(GenericService):
             job = job.get_job_from_id(job_id)
             difficulty = job.diff if job is not None else DifficultySubscription.difficulty
             result = (yield f.rpc('mining.submit', [worker_name, job_id, tail + extranonce2, ntime, nonce]))
-            client.reset_timeout()
         except RemoteServiceException as exc:
             response_time = (time.time() - start) * 1000
             log.info(
@@ -239,7 +238,6 @@ class StratumProxyService(GenericService):
                  difficulty,
                  str(exc)))
             ShareSubscription.emit(job_id, worker_name, difficulty, False)
-            client.reset_timeout()
             raise SubmitException(*exc.args)
 
         response_time = (time.time() - start) * 1000
