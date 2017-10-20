@@ -48,14 +48,8 @@ class Job(object):
         return job
 
 class JobRegistry(object):
-    tail_iterator = 0
-    registered_tails = []
-    extranonce1 = None
-    extranonce1_bin = None
-    extranonce2_size = None
 
-    def __init__(self, f, scrypt_target=False):
-        self.f = f
+    def __init__(self, scrypt_target=False):
         # calculate target for scrypt algorithm instead of sha256
         self.scrypt_target = scrypt_target
         self.jobs = []

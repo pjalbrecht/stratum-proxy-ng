@@ -1,5 +1,3 @@
-#from twisted.internet import reactor
-
 from stratum.event_handler import GenericEventHandler
 from jobs import Job
 import utils
@@ -11,11 +9,20 @@ log = stratum.logger.get_logger('proxy')
 
 
 class ClientMiningService(GenericEventHandler):
-    job_registry = None  # Reference to JobRegistry instance
-    f = None  # Factory of Stratum client
+    stp = None  # Reference to StratumProxy instance
+
+    @classmethod
+    def _set_stratum_proxy(cls, stp):
+         cls.stp = stp
+
+    @classmethod
+    def _get_stratum_proxy(cls):
+         return cls.stp
 
     def handle_event(self, method, params, connection_ref):
         '''Handle RPC calls and notifications from the pool'''
+
+        stp = ClientMiningService._get_stratum_proxy()
 
         if method == 'mining.notify':
             '''Proxy just received information about new mining job'''
@@ -29,7 +36,7 @@ class ClientMiningService(GenericEventHandler):
              nbits,
              ntime,
              clean_jobs) = params[:9]
-            diff = self.job_registry.difficulty
+            diff = stp.job_registry.difficulty
             # print len(str(params)), len(merkle_branch)
             '''
             log.debug("Received new job #%s" % job_id)
@@ -69,14 +76,14 @@ class ClientMiningService(GenericEventHandler):
             log.info("New job %s for prevhash %s, clean_jobs=%s" %
                      (job.job_id, utils.format_hash(job.prevhash), clean_jobs))
 
-            self.job_registry.add_template(job, clean_jobs)
+            stp.job_registry.add_template(job, clean_jobs)
 
         elif method == 'mining.set_difficulty':
             difficulty = params[0]
             log.info("Setting new difficulty: %s" % difficulty)
             stratum_listener.DifficultySubscription.on_new_difficulty(
                 difficulty)
-            self.job_registry.set_difficulty(difficulty)
+            stp.job_registry.set_difficulty(difficulty)
 
         elif method == 'client.reconnect':
             try:
@@ -86,13 +93,13 @@ class ClientMiningService(GenericEventHandler):
                 hostname = False
                 port = False
                 wait = False
-            new = list(self.job_registry.f.main_host[::])
+            new = list(stp.f.main_host[::])
             if hostname and len(hostname) > 6:
                 new[0] = hostname
             if port and port > 2:
                 new[1] = port
             log.info("Reconnecting to %s:%d" % tuple(new))
-            self.f.reconnect(new[0], new[1], wait)
+            stp.f.reconnect(new[0], new[1], wait)
 
         elif method == 'mining.set_extranonce':
             '''Method to set new extranonce'''
@@ -106,7 +113,7 @@ class ClientMiningService(GenericEventHandler):
                 log.error(
                     "Wrong extranonce information got from pool, ignoring")
                 return False
-            self.job_registry.set_extranonce(
+            stp.job_registry.set_extranonce(
                 extranonce1,
                 int(extranonce2_size))
             log.info('Sending reconnect order to workers')
@@ -119,7 +126,7 @@ class ClientMiningService(GenericEventHandler):
             '''
             peerlist = params[0] # TODO
             for peer in peerlist:
-                self.job_registry.f.add_peer(peer)
+                stp.f.add_peer(peer)
             return True
             '''
         elif method == 'client.get_version':

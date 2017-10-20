@@ -26,8 +26,6 @@ from stratum.services import ServiceEventHandler
 from mining_libs import stratum_listener
 from mining_libs import client_service
 from mining_libs import jobs
-from mining_libs import version
-from mining_libs import utils
 from mining_libs import stratum_control
 import stratum.logger
 
@@ -36,22 +34,23 @@ class StratumServer():
     shutdown = False
     log = None
 
-    def __init__(self, st_listen, st_control):
+    def __init__(self):
         self.log = stratum.logger.get_logger('proxy%s' % settings.STRATUM_PORT)
-        st_listen.log = stratum.logger.get_logger(
+        stratum_listener.log = stratum.logger.get_logger(
             'proxy%s' %
             settings.STRATUM_PORT)
-        stp = StratumProxy(st_listen)
+        stp = StratumProxy()
         stp.set_pool(
             settings.POOL_HOST,
             settings.POOL_PORT,
             settings.POOL_USER,
             settings.POOL_PASS)
+        client_service.ClientMiningService._set_stratum_proxy(stp)
         stp.connect()
         # Setup stratum listener
         if settings.STRATUM_PORT > 0:
-            st_listen.StratumProxyService._set_stratum_proxy(stp)
-            self.stf = SocketTransportFactory(
+            stratum_listener.StratumProxyService._set_stratum_proxy(stp)
+            self.f = SocketTransportFactory(
                 debug=False,
                 event_handler=ServiceEventHandler)
             reactor.addSystemEventTrigger(
@@ -64,8 +63,8 @@ class StratumServer():
                 (settings.STRATUM_PORT))
         # Setup control listener
         if settings.CONTROL_PORT > 0:
-            st_control.StratumControlService._set_stratum_proxy(stp)
-            reactor_control = reactor.listenTCP(
+            stratum_control.StratumControlService._set_stratum_proxy(stp)
+            reactor.listenTCP(
                 settings.CONTROL_PORT,
                 SocketTransportFactory(
                     debug=True,
@@ -80,16 +79,12 @@ class StratumServer():
         f.is_reconnecting = False
 
 class StratumProxy():
-    f = None
-    jobreg = None
-    cservice = None
-    use_set_extranonce = False
     set_extranonce_pools = ['nicehash.com']
     connecting = False
 
-    def __init__(self, stl):
+    def __init__(self):
+        use_set_extranonce = False
         self.log = stratum.logger.get_logger('proxy')
-        self.stl = stl
 
     def _detect_set_extranonce(self):
         self.use_set_extranonce = False
@@ -104,16 +99,13 @@ class StratumProxy():
         self.host = host
         self.port = int(port)
         self._detect_set_extranonce()
-        self.cservice = client_service.ClientMiningService
         self.f = SocketTransportClientFactory(
             host,
             port,
             debug=True,
-            event_handler=self.cservice)
-        self.jobreg = jobs.JobRegistry(self.f, scrypt_target=True)
-        self.cservice.job_registry = self.jobreg
+            event_handler=client_service.ClientMiningService)
+        self.job_registry = jobs.JobRegistry(scrypt_target=True)
         self.auth = (user, passw)
-        self.cservice.f = self.f
         self.f.on_connect.addCallback(self.on_connect)
         self.f.on_disconnect.addCallback(self.on_disconnect)
 
@@ -153,7 +145,7 @@ class StratumProxy():
         # Subscribe for receiving jobs
         self.log.info("Subscribing for mining jobs")
         (_, extranonce1, extranonce2_size) = (yield self.f.rpc('mining.subscribe', []))[:3]
-        self.jobreg.set_extranonce(extranonce1, extranonce2_size)
+        self.job_registry.set_extranonce(extranonce1, extranonce2_size)
 
         if self.use_set_extranonce:
             self.log.info("Enable extranonce subscription method")
@@ -169,5 +161,5 @@ class StratumProxy():
     def on_disconnect(self, f):
         '''Callback when proxy get disconnected from the pool'''
         f.on_disconnect.addCallback(self.on_disconnect)
-        self.stl.MiningSubscription.reconnect_all()
+        stratum_listener.MiningSubscription.reconnect_all()
         return f

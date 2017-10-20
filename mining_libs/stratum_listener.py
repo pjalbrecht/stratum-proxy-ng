@@ -1,11 +1,8 @@
 import time
-import binascii
-import struct
 from twisted.internet import defer
 from stratum.services import GenericService
 from stratum.pubsub import Pubsub, Subscription
 from stratum.custom_exceptions import ServiceException, RemoteServiceException
-from jobs import JobRegistry
 import stratum.logger
 log = stratum.logger.get_logger('proxy')
 
@@ -170,7 +167,7 @@ class StratumProxyService(GenericService):
     @defer.inlineCallbacks
     def subscribe(self, *args):
         f = self._get_stratum_proxy().f
-        job = self._get_stratum_proxy().jobreg
+        job_registry = self._get_stratum_proxy().job_registry
 
         if f.client is None or not f.client.connected:
             yield f.on_connect
@@ -180,23 +177,23 @@ class StratumProxyService(GenericService):
         if f.client is None or not f.client.connected or not conn:
             raise UpstreamServiceException("Upstream not connected")
 
-        if job.extranonce1 is None:
+        if job_registry.extranonce1 is None:
             # This should never happen, because _f.on_connect is fired *after*
             # connection receive mining.subscribe response
             raise UpstreamServiceException("Not subscribed on upstream yet")
 
-        (tail, extranonce2_size) = job._get_unused_tail()
+        (tail, extranonce2_size) = job_registry._get_unused_tail()
         session = self.connection_ref().get_session()
         session['tail'] = tail
         # Remove extranonce from registry when client disconnect
-        conn.on_disconnect.addCallback(job._drop_tail, tail)
+        conn.on_disconnect.addCallback(job_registry._drop_tail, tail)
         subs1 = Pubsub.subscribe(conn, DifficultySubscription())[0]
         subs2 = Pubsub.subscribe(conn, MiningSubscription())[0]
         log.info(
             "Sending subscription to worker: %s/%s" %
-            (job.extranonce1 + tail, extranonce2_size))
+            (job_registry.extranonce1 + tail, extranonce2_size))
         defer.returnValue(
-            ((subs1, subs2),) + (job.extranonce1 + tail, extranonce2_size))
+            ((subs1, subs2),) + (job_registry.extranonce1 + tail, extranonce2_size))
 
     @defer.inlineCallbacks
     def submit(
@@ -209,7 +206,7 @@ class StratumProxyService(GenericService):
             *args):
         stp = self._get_stratum_proxy()
         f = self._get_stratum_proxy().f
-        job = self._get_stratum_proxy().jobreg
+        job_registry = self._get_stratum_proxy().job_registry
 
         if f.client is None or not f.client.connected:
             raise SubmitException("Upstream not connected")
@@ -225,7 +222,7 @@ class StratumProxyService(GenericService):
         # We got something from pool, reseting client_service timeout
 
         try:
-            job = job.get_job_from_id(job_id)
+            job = job_registry.get_job_from_id(job_id)
             difficulty = job.diff if job is not None else DifficultySubscription.difficulty
             result = (yield f.rpc('mining.submit', [worker_name, job_id, tail + extranonce2, ntime, nonce]))
         except RemoteServiceException as exc:
