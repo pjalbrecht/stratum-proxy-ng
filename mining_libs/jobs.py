@@ -49,20 +49,12 @@ class Job(object):
 
 class JobRegistry(object):
 
-    def __init__(self, scrypt_target=False):
-        # calculate target for scrypt algorithm instead of sha256
-        self.scrypt_target = scrypt_target
+    def __init__(self):
         self.jobs = []
         self.last_job = None
         self.extranonce1 = None
         self.extranonce1_bin = None
         self.extranonce2_size = None
-
-        self.target = 0
-        self.target_hex = ''
-        self.difficulty = 1
-        self.set_difficulty(1)
-        self.target1_hex = self.target_hex
 
         self.tail_iterator = 0
         self.registered_tails = []
@@ -75,40 +67,6 @@ class JobRegistry(object):
             "Set extranonce: %s/%s",
             self.extranonce1,
             self.extranonce2_size)
-
-    def set_difficulty(self, new_difficulty):
-        if self.scrypt_target:
-            dif1 = 0x0000ffff00000000000000000000000000000000000000000000000000000000
-        else:
-            dif1 = 0x00000000ffff0000000000000000000000000000000000000000000000000000
-        self.target = int(dif1 / new_difficulty)
-        self.target_hex = binascii.hexlify(utils.uint256_to_str(self.target))
-        self.difficulty = new_difficulty
-
-    def build_full_extranonce(self, extranonce2):
-        '''Join extranonce1 and extranonce2 together while padding
-        extranonce2 length to extranonce2_size (provided by server).'''
-        return self.extranonce1_bin + self.extranonce2_padding(extranonce2)
-
-    def extranonce2_padding(self, extranonce2):
-        '''Return extranonce2 with padding bytes'''
-
-        if not self.extranonce2_size:
-            raise Exception("Extranonce2_size isn't set yet")
-
-        extranonce2_bin = struct.pack('>I', extranonce2)
-        missing_len = self.extranonce2_size - len(extranonce2_bin)
-
-        if missing_len < 0:
-            # extranonce2 is too long, we should print warning on console,
-            # but try to shorten extranonce2
-            log.info(
-                "Extranonce size mismatch. Please report this error to pool operator!")
-            return extranonce2_bin[abs(missing_len):]
-
-        # This is probably more common situation, but it is perfectly
-        # safe to add whitespaces
-        return '\x00' * missing_len + extranonce2_bin
 
     def add_template(self, template, clean_jobs):
         if clean_jobs:

@@ -8,22 +8,8 @@ log = stratum.logger.get_logger('proxy')
 
 from stratum_control import ShareSubscription
 
-
-class UpstreamServiceException(ServiceException):
-    code = -2
-
-
 class SubmitException(ServiceException):
     code = -2
-
-
-class ReconnectSubscription(Subscription):
-    event = 'mining.reconnect'
-
-    @classmethod
-    def reconnect(cls):
-        cls.emit([])
-
 
 class DifficultySubscription(Subscription):
     event = 'mining.set_difficulty'
@@ -34,8 +20,9 @@ class DifficultySubscription(Subscription):
         cls.difficulty = new_difficulty
         cls.emit(new_difficulty)
 
-    def after_subscribe(self, *args):
+    def after_subscribe(self, result):
         self.emit_single(self.difficulty)
+        return result
 
 
 class MiningSubscription(Subscription):
@@ -107,7 +94,7 @@ class MiningSubscription(Subscription):
             ntime,
             clean_jobs)
 
-    def _finish_after_subscribe(self, result):
+    def after_subscribe(self, result):
         '''Send new job to newly subscribed client'''
         try:
             (job_id,
@@ -135,14 +122,6 @@ class MiningSubscription(Subscription):
             True)
         return result
 
-    def after_subscribe(self, *args):
-        '''This will send new job to the client *after* he receive subscription details.
-        on_finish callback solve the issue that job is broadcasted *during*
-        the subscription request and client receive messages in wrong order.'''
-        self.connection_ref().on_finish.addCallback(
-            self._finish_after_subscribe)
-
-
 class StratumProxyService(GenericService):
     service_type = 'mining'
     service_vendor = 'mining_proxy'
@@ -157,30 +136,13 @@ class StratumProxyService(GenericService):
     def _get_stratum_proxy(cls):
         return cls.stp
 
-    @defer.inlineCallbacks
     def authorize(self, worker_name, worker_password, *args):
-        f = self._get_stratum_proxy().f
-        if f.client is None or not f.client.connected:
-            yield f.on_connect
-        defer.returnValue(True)
+        return True
 
-    @defer.inlineCallbacks
     def subscribe(self, *args):
-        f = self._get_stratum_proxy().f
         job_registry = self._get_stratum_proxy().job_registry
 
-        if f.client is None or not f.client.connected:
-            yield f.on_connect
-
         conn = self.connection_ref()
-
-        if f.client is None or not f.client.connected or not conn:
-            raise UpstreamServiceException("Upstream not connected")
-
-        if job_registry.extranonce1 is None:
-            # This should never happen, because _f.on_connect is fired *after*
-            # connection receive mining.subscribe response
-            raise UpstreamServiceException("Not subscribed on upstream yet")
 
         (tail, extranonce2_size) = job_registry._get_unused_tail()
         session = self.connection_ref().get_session()
@@ -192,8 +154,7 @@ class StratumProxyService(GenericService):
         log.info(
             "Sending subscription to worker: %s/%s" %
             (job_registry.extranonce1 + tail, extranonce2_size))
-        defer.returnValue(
-            ((subs1, subs2),) + (job_registry.extranonce1 + tail, extranonce2_size))
+        return ((subs1, subs2),) + (job_registry.extranonce1 + tail, extranonce2_size)
 
     @defer.inlineCallbacks
     def submit(
@@ -207,9 +168,6 @@ class StratumProxyService(GenericService):
         stp = self._get_stratum_proxy()
         f = self._get_stratum_proxy().f
         job_registry = self._get_stratum_proxy().job_registry
-
-        if f.client is None or not f.client.connected:
-            raise SubmitException("Upstream not connected")
 
         session = self.connection_ref().get_session()
         tail = session.get('tail')

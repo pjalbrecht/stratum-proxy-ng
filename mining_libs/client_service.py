@@ -36,7 +36,7 @@ class ClientMiningService(GenericEventHandler):
              nbits,
              ntime,
              clean_jobs) = params[:9]
-            diff = stp.job_registry.difficulty
+            diff = stratum_listener.DifficultySubscription.difficulty
             # print len(str(params)), len(merkle_branch)
             '''
             log.debug("Received new job #%s" % job_id)
@@ -83,7 +83,6 @@ class ClientMiningService(GenericEventHandler):
             log.info("Setting new difficulty: %s" % difficulty)
             stratum_listener.DifficultySubscription.on_new_difficulty(
                 difficulty)
-            stp.job_registry.set_difficulty(difficulty)
 
         elif method == 'client.reconnect':
             try:

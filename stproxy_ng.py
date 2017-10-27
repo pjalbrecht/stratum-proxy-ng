@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 '''
     Stratum mining proxy new generation
     Copyright (C) 2012 Marek Palatinus <slush@satoshilabs.com>
@@ -46,7 +45,6 @@ class StratumServer():
             settings.POOL_USER,
             settings.POOL_PASS)
         client_service.ClientMiningService._set_stratum_proxy(stp)
-        stp.connect()
         # Setup stratum listener
         if settings.STRATUM_PORT > 0:
             stratum_listener.StratumProxyService._set_stratum_proxy(stp)
@@ -80,7 +78,6 @@ class StratumServer():
 
 class StratumProxy():
     set_extranonce_pools = ['nicehash.com']
-    connecting = False
 
     def __init__(self):
         use_set_extranonce = False
@@ -99,13 +96,13 @@ class StratumProxy():
         self.host = host
         self.port = int(port)
         self._detect_set_extranonce()
+        self.job_registry = jobs.JobRegistry()
+        self.auth = (user, passw)
         self.f = SocketTransportClientFactory(
             host,
             port,
             debug=True,
             event_handler=client_service.ClientMiningService)
-        self.job_registry = jobs.JobRegistry(scrypt_target=True)
-        self.auth = (user, passw)
         self.f.on_connect.addCallback(self.on_connect)
         self.f.on_disconnect.addCallback(self.on_disconnect)
 
@@ -131,35 +128,27 @@ class StratumProxy():
         else:
             self.f.reconnect(host, port, None)
 
-    def connect(self):
-        self.connecting = True
-        yield self.f.on_connect
-        self.connecting = False
-
     @defer.inlineCallbacks
     def on_connect(self, f):
         '''Callback when proxy get connected to the pool'''
         # Hook to on_connect again
         f.on_connect.addCallback(self.on_connect)
 
-        # Subscribe for receiving jobs
+        # Subscribe proxy
         self.log.info("Subscribing for mining jobs")
         (_, extranonce1, extranonce2_size) = (yield self.f.rpc('mining.subscribe', []))[:3]
         self.job_registry.set_extranonce(extranonce1, extranonce2_size)
 
+        # Set extranonce
         if self.use_set_extranonce:
             self.log.info("Enable extranonce subscription method")
             f.rpc('mining.extranonce.subscribe', [])
-        self.log.warning(
-            "Authorizing user %s, password %s" %
-            self.auth)
-        f.rpc('mining.authorize', [self.auth[0], self.auth[1]])
 
-        # Set controlled disconnect to False
-        defer.returnValue(f)
+        # Authorize proxy
+        self.log.warning( "Authorizing user %s, password %s" % self.auth)
+        f.rpc('mining.authorize', [self.auth[0], self.auth[1]])
 
     def on_disconnect(self, f):
         '''Callback when proxy get disconnected from the pool'''
         f.on_disconnect.addCallback(self.on_disconnect)
         stratum_listener.MiningSubscription.reconnect_all()
-        return f

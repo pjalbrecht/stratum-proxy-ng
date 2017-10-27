@@ -20,7 +20,7 @@ class StratumControlService(GenericService):
      @classmethod
      def _get_stratum_proxy(cls):
           return cls.stp
-
+     '''
      def set_pool(self, host, port, user, passw):
           log.info("set pool.........%s %s %s %s" % (host, port, user, passw))
           stp = self._get_stratum_proxy()
@@ -30,7 +30,7 @@ class StratumControlService(GenericService):
                user=user,
                passw=passw)
           return True
-     
+     ''' 
      @pubsub.subscribe
      def subscribe_share(self):
           return ShareSubscription()
