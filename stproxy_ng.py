@@ -38,8 +38,7 @@ class StratumServer():
         stratum_listener.log = stratum.logger.get_logger(
             'proxy%s' %
             settings.STRATUM_PORT)
-        stp = StratumProxy()
-        stp.set_pool(
+        stp = StratumProxy(
             settings.POOL_HOST,
             settings.POOL_PORT,
             settings.POOL_USER,
@@ -79,17 +78,11 @@ class StratumServer():
 class StratumProxy():
     set_extranonce_pools = ['nicehash.com']
 
-    def __init__(self):
-        use_set_extranonce = False
-        self.log = stratum.logger.get_logger('proxy')
-
-    def _detect_set_extranonce(self):
+    def __init__(self, host, port, user, passw):
+        self.difficulty = 1
+        self.last_broadcast = None 
         self.use_set_extranonce = False
-        for pool in self.set_extranonce_pools:
-            if self.host.find(pool) > 0:
-                self.use_set_extranonce = True
-
-    def set_pool(self, host, port, user, passw, timeout=120):
+        self.log = stratum.logger.get_logger('proxy')
         self.log.warning(
             "Trying to connect to Stratum pool at %s:%d" %
             (host, port))
@@ -106,27 +99,11 @@ class StratumProxy():
         self.f.on_connect.addCallback(self.on_connect)
         self.f.on_disconnect.addCallback(self.on_disconnect)
 
-    def reconnect(self, host=None, port=None, user=None, passw=None):
-        if host:
-            self.host = host
-        if port:
-            self.port = int(port)
-        self._detect_set_extranonce()
-        cuser, cpassw = self.auth
-        if not user:
-            user = cuser
-        if not passw:
-            passw = cpassw
-        self.auth = (user, passw)
-        self.log.info("Trying reconnection with pool")
-        if not self.f.client:
-            self.log.info("Client was not connected before!")
-            self.f.on_connect.addCallback(self.on_connect)
-            self.f.on_disconnect.addCallback(self.on_disconnect)
-            self.f.new_host = (self.host, self.port)
-            self.f.connect()
-        else:
-            self.f.reconnect(host, port, None)
+    def _detect_set_extranonce(self):
+        self.use_set_extranonce = False
+        for pool in self.set_extranonce_pools:
+            if self.host.find(pool) > 0:
+                self.use_set_extranonce = True
 
     @defer.inlineCallbacks
     def on_connect(self, f):

@@ -1,6 +1,5 @@
 from stratum.event_handler import GenericEventHandler
 from jobs import Job
-import utils
 import version as _version
 import stratum_listener
 
@@ -36,7 +35,9 @@ class ClientMiningService(GenericEventHandler):
              nbits,
              ntime,
              clean_jobs) = params[:9]
-            diff = stratum_listener.DifficultySubscription.difficulty
+
+            diff = stp.difficulty
+
             # print len(str(params)), len(merkle_branch)
             '''
             log.debug("Received new job #%s" % job_id)
@@ -50,8 +51,10 @@ class ClientMiningService(GenericEventHandler):
             log.debug("merkle_branch = %s" % merkle_branch)
             log.debug("difficulty = %s" % diff)
             '''
+
             # Broadcast to Stratum clients
             stratum_listener.MiningSubscription.on_template(
+                stp,
                 job_id,
                 prevhash,
                 coinb1,
@@ -74,7 +77,7 @@ class ClientMiningService(GenericEventHandler):
                 ntime,
                 diff)
             log.info("New job %s for prevhash %s, clean_jobs=%s" %
-                     (job.job_id, utils.format_hash(job.prevhash), clean_jobs))
+                     (job.job_id, job.prevhash[:8], clean_jobs))
 
             stp.job_registry.add_template(job, clean_jobs)
 
@@ -82,6 +85,7 @@ class ClientMiningService(GenericEventHandler):
             difficulty = params[0]
             log.info("Setting new difficulty: %s" % difficulty)
             stratum_listener.DifficultySubscription.on_new_difficulty(
+                stp,
                 difficulty)
 
         elif method == 'client.reconnect':
@@ -134,7 +138,7 @@ class ClientMiningService(GenericEventHandler):
         elif method == 'client.show_message':
 
             # Displays message from the server to the terminal
-            utils.show_message(params[0])
+            log.warning("MESSAGE FROM THE SERVER OPERATOR: %s" % params[0])
             return True
 
         elif method == 'mining.get_hashrate':

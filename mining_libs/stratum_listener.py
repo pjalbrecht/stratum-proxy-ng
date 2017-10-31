@@ -13,15 +13,18 @@ class SubmitException(ServiceException):
 
 class DifficultySubscription(Subscription):
     event = 'mining.set_difficulty'
-    difficulty = 1
 
     @classmethod
-    def on_new_difficulty(cls, new_difficulty):
-        cls.difficulty = new_difficulty
+    def on_new_difficulty(cls, stp, new_difficulty):
+        stp.difficulty = new_difficulty
         cls.emit(new_difficulty)
 
+    def __init__(self, stp):
+        Subscription.__init__(self)
+        self.stp = stp
+
     def after_subscribe(self, result):
-        self.emit_single(self.difficulty)
+        self.emit_single(self.stp.difficulty)
         return result
 
 
@@ -31,13 +34,6 @@ class MiningSubscription(Subscription):
     logic for broadcasting new jobs to the clients.'''
 
     event = 'mining.notify'
-    last_broadcast = None
-
-    @classmethod
-    def disconnect_all(cls):
-        for subs in Pubsub.iterate_subscribers(cls.event):
-            if subs.connection_ref().transport is not None:
-                subs.connection_ref().transport.loseConnection()
 
     @classmethod
     def reconnect_all(cls):
@@ -46,23 +42,9 @@ class MiningSubscription(Subscription):
                 subs.connection_ref().transport.loseConnection()
 
     @classmethod
-    def print_subs(cls):
-        c = Pubsub.get_subscription_count(cls.event)
-        log.info(c)
-        for subs in Pubsub.iterate_subscribers(cls.event):
-            s = Pubsub.get_subscription(
-                subs.connection_ref(),
-                cls.event,
-                key=None)
-            log.info(s)
-
-    @classmethod
-    def get_num_connections(cls):
-        return Pubsub.get_subscription_count(cls.event)
-
-    @classmethod
     def on_template(
             cls,
+            stp,
             job_id,
             prevhash,
             coinb1,
@@ -73,7 +55,7 @@ class MiningSubscription(Subscription):
             ntime,
             clean_jobs):
         '''Push new job to subscribed clients'''
-        cls.last_broadcast = (
+        stp.last_broadcast = (
             job_id,
             prevhash,
             coinb1,
@@ -94,6 +76,10 @@ class MiningSubscription(Subscription):
             ntime,
             clean_jobs)
 
+    def __init__(self, stp):
+        Subscription.__init__(self)
+        self.stp = stp
+
     def after_subscribe(self, result):
         '''Send new job to newly subscribed client'''
         try:
@@ -105,7 +91,7 @@ class MiningSubscription(Subscription):
              version,
              nbits,
              ntime,
-             _) = self.last_broadcast
+             _) = self.stp.last_broadcast
         except Exception:
             log.error("Template not ready yet")
             return result
@@ -140,6 +126,7 @@ class StratumProxyService(GenericService):
         return True
 
     def subscribe(self, *args):
+        stp = self._get_stratum_proxy()
         job_registry = self._get_stratum_proxy().job_registry
 
         conn = self.connection_ref()
@@ -149,8 +136,8 @@ class StratumProxyService(GenericService):
         session['tail'] = tail
         # Remove extranonce from registry when client disconnect
         conn.on_disconnect.addCallback(job_registry._drop_tail, tail)
-        subs1 = Pubsub.subscribe(conn, DifficultySubscription())[0]
-        subs2 = Pubsub.subscribe(conn, MiningSubscription())[0]
+        subs1 = Pubsub.subscribe(conn, DifficultySubscription(stp))[0]
+        subs2 = Pubsub.subscribe(conn, MiningSubscription(stp))[0]
         log.info(
             "Sending subscription to worker: %s/%s" %
             (job_registry.extranonce1 + tail, extranonce2_size))
@@ -181,7 +168,7 @@ class StratumProxyService(GenericService):
 
         try:
             job = job_registry.get_job_from_id(job_id)
-            difficulty = job.diff if job is not None else DifficultySubscription.difficulty
+            difficulty = job.diff if job is not None else stp.difficulty
             result = (yield f.rpc('mining.submit', [worker_name, job_id, tail + extranonce2, ntime, nonce]))
         except RemoteServiceException as exc:
             response_time = (time.time() - start) * 1000
