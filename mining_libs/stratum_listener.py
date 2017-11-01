@@ -3,6 +3,7 @@ from twisted.internet import defer
 from stratum.services import GenericService
 from stratum.pubsub import Pubsub, Subscription
 from stratum.custom_exceptions import ServiceException, RemoteServiceException
+
 import stratum.logger
 log = stratum.logger.get_logger('proxy')
 
@@ -29,10 +30,6 @@ class DifficultySubscription(Subscription):
 
 
 class MiningSubscription(Subscription):
-
-    '''This subscription object implements
-    logic for broadcasting new jobs to the clients.'''
-
     event = 'mining.notify'
 
     @classmethod

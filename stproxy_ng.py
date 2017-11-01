@@ -26,18 +26,14 @@ from mining_libs import stratum_listener
 from mining_libs import client_service
 from mining_libs import jobs
 from mining_libs import stratum_control
-import stratum.logger
 
+import stratum.logger
+log = stratum.logger.get_logger('proxy')  
 
 class StratumServer():
     shutdown = False
-    log = None
 
     def __init__(self):
-        self.log = stratum.logger.get_logger('proxy%s' % settings.STRATUM_PORT)
-        stratum_listener.log = stratum.logger.get_logger(
-            'proxy%s' %
-            settings.STRATUM_PORT)
         stp = StratumProxy(
             settings.POOL_HOST,
             settings.POOL_PORT,
@@ -55,8 +51,8 @@ class StratumServer():
                 'shutdown',
                 self.on_shutdown,
                 stp.f)
-            self.log.warning(
-                "PROXY IS LISTENING ON ALL IPs ON PORT %d (stratum)" %
+            log.info(
+                "Proxy is listening on port %d (stratum)" %
                 (settings.STRATUM_PORT))
         # Setup control listener
         if settings.CONTROL_PORT > 0:
@@ -71,7 +67,7 @@ class StratumServer():
     def on_shutdown(self, f):
         self.shutdown = True
         '''Clean environment properly'''
-        self.log.info("Shutting down proxy...")
+        log.info("Shutting down proxy...")
         # Don't let stratum factory to reconnect again
         f.is_reconnecting = False
 
@@ -82,9 +78,8 @@ class StratumProxy():
         self.difficulty = 1
         self.last_broadcast = None 
         self.use_set_extranonce = False
-        self.log = stratum.logger.get_logger('proxy')
-        self.log.warning(
-            "Trying to connect to Stratum pool at %s:%d" %
+        log.info(
+            "Connecting to Stratum pool at %s:%d" %
             (host, port))
         self.host = host
         self.port = int(port)
@@ -112,17 +107,17 @@ class StratumProxy():
         f.on_connect.addCallback(self.on_connect)
 
         # Subscribe proxy
-        self.log.info("Subscribing for mining jobs")
+        log.info("Subscribing for mining jobs")
         (_, extranonce1, extranonce2_size) = (yield self.f.rpc('mining.subscribe', []))[:3]
         self.job_registry.set_extranonce(extranonce1, extranonce2_size)
 
         # Set extranonce
         if self.use_set_extranonce:
-            self.log.info("Enable extranonce subscription method")
+            log.info("Enable extranonce subscription method")
             f.rpc('mining.extranonce.subscribe', [])
 
         # Authorize proxy
-        self.log.warning( "Authorizing user %s, password %s" % self.auth)
+        log.info( "Authorizing user %s, password %s" % self.auth)
         f.rpc('mining.authorize', [self.auth[0], self.auth[1]])
 
     def on_disconnect(self, f):

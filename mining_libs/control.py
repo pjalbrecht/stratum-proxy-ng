@@ -1,6 +1,9 @@
 from twisted.internet import defer
 from stratum.services import GenericService
 import stratum.pubsub as pubsub
+import stratum.connection_registry
+import stratum.protocol
+
 import stratum.logger
 log = stratum.logger.get_logger('proxy')
 
@@ -20,6 +23,7 @@ class StratumControlService(GenericService):
      @classmethod
      def _get_stratum_proxy(cls):
           return cls.stp
+
      '''
      def set_pool(self, host, port, user, passw):
           log.info("set pool.........%s %s %s %s" % (host, port, user, passw))
@@ -31,6 +35,7 @@ class StratumControlService(GenericService):
                passw=passw)
           return True
      ''' 
+
      @pubsub.subscribe
      def subscribe_share(self):
           return ShareSubscription()

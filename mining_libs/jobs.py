@@ -2,11 +2,8 @@ import binascii
 import time
 import struct
 
-import utils
-
 import stratum.logger
 log = stratum.logger.get_logger('proxy')
-
 
 class Job(object):
 
