@@ -7,7 +7,7 @@ from stratum.custom_exceptions import ServiceException, RemoteServiceException
 import stratum.logger
 log = stratum.logger.get_logger('proxy')
 
-from stratum_control import ShareSubscription
+from control import ShareSubscription
 
 class SubmitException(ServiceException):
     code = -2

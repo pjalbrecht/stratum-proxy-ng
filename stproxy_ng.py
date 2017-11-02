@@ -25,7 +25,7 @@ from stratum.services import ServiceEventHandler
 from mining_libs import stratum_listener
 from mining_libs import client_service
 from mining_libs import jobs
-from mining_libs import stratum_control
+from mining_libs import control
 
 import stratum.logger
 log = stratum.logger.get_logger('proxy')  
@@ -56,7 +56,7 @@ class StratumServer():
                 (settings.STRATUM_PORT))
         # Setup control listener
         if settings.CONTROL_PORT > 0:
-            stratum_control.StratumControlService._set_stratum_proxy(stp)
+            control.StratumControlService._set_stratum_proxy(stp)
             reactor.listenTCP(
                 settings.CONTROL_PORT,
                 SocketTransportFactory(
@@ -108,7 +108,7 @@ class StratumProxy():
 
         # Subscribe proxy
         log.info("Subscribing for mining jobs")
-        (_, extranonce1, extranonce2_size) = (yield self.f.rpc('mining.subscribe', []))[:3]
+        (_, extranonce1, extranonce2_size) = (yield self.f.rpc('mining.subscribe', [settings.USER_AGENT]))[:3]
         self.job_registry.set_extranonce(extranonce1, extranonce2_size)
 
         # Set extranonce
