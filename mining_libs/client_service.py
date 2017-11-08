@@ -6,22 +6,14 @@ import stratum_listener
 import stratum.logger
 log = stratum.logger.get_logger('proxy')
 
+import stproxy_ng
 
 class ClientMiningService(GenericEventHandler):
-    stp = None  # Reference to StratumProxy instance
-
-    @classmethod
-    def _set_stratum_proxy(cls, stp):
-         cls.stp = stp
-
-    @classmethod
-    def _get_stratum_proxy(cls):
-         return cls.stp
 
     def handle_event(self, method, params, connection_ref):
         '''Handle RPC calls and notifications from the pool'''
 
-        stp = ClientMiningService._get_stratum_proxy()
+        stp = stproxy_ng.StratumServer._get_pool_proxy(connection_ref.get_ident())
 
         if method == 'mining.notify':
             '''Proxy just received information about new mining job'''

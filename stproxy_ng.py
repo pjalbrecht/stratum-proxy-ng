@@ -31,18 +31,45 @@ import stratum.logger
 log = stratum.logger.get_logger('proxy')  
 
 class StratumServer():
-    shutdown = False
+    pool2proxy = {}
+    miner2proxy = {}
+    miner2conn = {}
+    stp = None
+
+    @classmethod
+    def _set_pool_proxy(cls, pool_id, proxy):
+         cls.pool2proxy[pool_id] = proxy 
+
+    @classmethod
+    def _get_pool_proxy(cls, pool_id):
+         return cls.pool2proxy[pool_id]
+
+    @classmethod
+    def _set_miner_proxy(cls, miner_id, proxy):
+         cls.miner2proxy[miner_id] = proxy
+
+    @classmethod
+    def _get_miner_proxy(cls, miner_id):
+         cls.miner2proxy.setdefault(miner_id, cls.stp)
+         return cls.miner2proxy[miner_id]
+
+    @classmethod
+    def _set_miner_conn(cls, miner_id, conn):
+         cls.miner2conn[miner_id] = conn
+
+    @classmethod
+    def _get_miner_conn(cls, miner_id):
+         return cls.miner2conn[miner_id]
 
     def __init__(self):
-        stp = StratumProxy(
+        StratumServer.stp = StratumProxy(
             settings.POOL_HOST,
             settings.POOL_PORT,
             settings.POOL_USER,
             settings.POOL_PASS)
-        client_service.ClientMiningService._set_stratum_proxy(stp)
         # Setup stratum listener
         if settings.STRATUM_PORT > 0:
-            stratum_listener.StratumProxyService._set_stratum_proxy(stp)
+            #stratum_listener.StratumProxyService._set_stratum_proxy(StratumServer.stp)
             self.f = SocketTransportFactory(
                 debug=False,
                 event_handler=ServiceEventHandler)
@@ -50,13 +77,12 @@ class StratumServer():
                 'before',
                 'shutdown',
                 self.on_shutdown,
-                stp.f)
+                StratumServer.stp.f)
             log.info(
                 "Proxy is listening on port %d (stratum)" %
                 (settings.STRATUM_PORT))
         # Setup control listener
         if settings.CONTROL_PORT > 0:
-            control.StratumControlService._set_stratum_proxy(stp)
             reactor.listenTCP(
                 settings.CONTROL_PORT,
                 SocketTransportFactory(
@@ -65,7 +91,6 @@ class StratumServer():
                 interface=settings.CONTROL_HOST)
 
     def on_shutdown(self, f):
-        self.shutdown = True
         '''Clean environment properly'''
         log.info("Shutting down proxy...")
         # Don't let stratum factory to reconnect again
@@ -102,8 +127,11 @@ class StratumProxy():
 
     @defer.inlineCallbacks
     def on_connect(self, f):
+
+        # Set the pool proxy into table
+        StratumServer._set_pool_proxy(f.client.get_ident(), self)
+
         '''Callback when proxy get connected to the pool'''
-        # Hook to on_connect again
         f.on_connect.addCallback(self.on_connect)
 
         # Subscribe proxy
@@ -123,4 +151,4 @@ class StratumProxy():
     def on_disconnect(self, f):
         '''Callback when proxy get disconnected from the pool'''
         f.on_disconnect.addCallback(self.on_disconnect)
-        stratum_listener.MiningSubscription.reconnect_all()
+        stratum_listener.MiningSubscription.reconnect_all(self)
