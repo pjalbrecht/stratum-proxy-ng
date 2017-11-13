@@ -23,21 +23,25 @@ for a in sys.argv[3::]:
     k, v = a.split('=', 1)
     d[k] = v
 
-if sys.argv[2] == 'setpool':
+if sys.argv[2] == 'createpool':
     l = [ d['host'], d['port'], d['user'], d['pass'] ]
-    msg = {'id': 1234, 'method': 'control.' + 'set_pool', 'params': l}
+    msg = {'id': 1234, 'method': 'control.' + 'create_pool', 'params': l}
     print msg
-elif sys.argv[2] == 'setbackup':
-    l = [ d['host'], d['port'] ]
-    msg = {'id': 1234, 'method': 'control.' + 'set_backup', 'params': l}
+elif sys.argv[2] == 'connectpool':
+    l = [ d['pool'], d['miner'] ]
+    msg = {'id': 1234, 'method': 'control.' + 'connect_pool', 'params': l}
     print msg
-elif sys.argv[2] == 'getshares':
+elif sys.argv[2] == 'listconnections':
     l = []
-    msg = {'id': 1234, 'method': 'control.' + 'get_shares', 'params': l}
+    msg = {'id': 1234, 'method': 'control.' + 'list_connections', 'params': l}
     print msg
-elif sys.argv[2] == 'cleanshares':
+elif sys.argv[2] == 'listtables':
     l = []
-    msg = {'id': 1234, 'method': 'control.' + 'clean_shares', 'params': l}
+    msg = {'id': 1234, 'method': 'control.' + 'list_tables', 'params': l}
+    print msg
+elif sys.argv[2] == 'listsubscriptions':
+    l = []
+    msg = {'id': 1234, 'method': 'control.' + 'list_subscriptions', 'params': l}
     print msg
 else:
     msg = {}

@@ -40,6 +40,9 @@ class StratumServer():
     def _set_pool_proxy(cls, pool_id, proxy):
          cls.pool2proxy[pool_id] = proxy 
 
+    def _clr_pool_proxy(cls, pool_id):
+         del cls.pool2proxy[pool_id]
+
     @classmethod
     def _get_pool_proxy(cls, pool_id):
          return cls.pool2proxy[pool_id]
@@ -130,6 +133,9 @@ class StratumProxy():
 
         # Set the pool proxy into table
         StratumServer._set_pool_proxy(f.client.get_ident(), self)
+
+        # Broadcast the event
+        control.PoolSubscription.emit(f.client.get_ident())
 
         '''Callback when proxy get connected to the pool'''
         f.on_connect.addCallback(self.on_connect)

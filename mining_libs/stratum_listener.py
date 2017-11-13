@@ -9,7 +9,7 @@ log = stratum.logger.get_logger('proxy')
 
 import stproxy_ng
 
-from control import ShareSubscription
+from control import ShareSubscription, MinerSubscription
 
 class SubmitException(ServiceException):
     code = -2
@@ -130,6 +130,8 @@ class StratumProxyService(GenericService):
 
     def subscribe(self, *args):
         conn = self.connection_ref()
+
+        MinerSubscription.emit(conn._get_ip())
 
         stp = stproxy_ng.StratumServer._get_miner_proxy(conn._get_ip())
         stproxy_ng.StratumServer._set_miner_conn(conn._get_ip(), conn)
