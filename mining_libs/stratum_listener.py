@@ -192,7 +192,7 @@ class StratumProxyService(GenericService):
                  worker_name,
                  difficulty,
                  str(exc)))
-            ShareSubscription.emit(job_id, worker_name, difficulty, False)
+            ShareSubscription.emit(job_id, f.client._get_ip(), origin_worker_name, worker_name, difficulty, False)
             raise SubmitException(*exc.args)
 
         response_time = (time.time() - start) * 1000
@@ -204,7 +204,7 @@ class StratumProxyService(GenericService):
              worker_name,
              difficulty))
 
-        ShareSubscription.emit(job_id, worker_name, difficulty, True)
+        ShareSubscription.emit(job_id, f.client._get_ip(), origin_worker_name, worker_name, difficulty, True)
 
         defer.returnValue(result)
 

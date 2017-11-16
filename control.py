@@ -24,7 +24,7 @@ for a in sys.argv[3::]:
     d[k] = v
 
 if sys.argv[2] == 'createpool':
-    l = [ d['host'], d['port'], d['user'], d['pass'] ]
+    l = [ d['host'], d['port'], d['user'], d['pass'], d['pool']]
     msg = {'id': 1234, 'method': 'control.' + 'create_pool', 'params': l}
     print msg
 elif sys.argv[2] == 'connectpool':

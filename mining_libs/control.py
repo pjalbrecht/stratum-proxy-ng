@@ -21,9 +21,9 @@ class PoolSubscription(pubsub.Subscription):
 
     def after_subscribe(self, result):
         log.info('after pool subscribe....................')
-        for k in stproxy_ng.StratumServer.pool2proxy:
-            PoolSubscription.emit(k)
-            log.info(k)
+        for k,v in stproxy_ng.StratumServer.pool2proxy.iteritems():
+            PoolSubscription.emit(v.pool_id, k)
+            log.info('%s %s' % (v.pool_id, k))
         log.info('....................after pool subscribe')
         return result
 
@@ -43,10 +43,10 @@ class StratumControlService(GenericService):
      service_vendor = 'mining_proxy'
      is_default = True
 
-     def create_pool(self, host, port, user, passw):
-          log.info('create pool..........%s %s %s %s' % (host, port, user, passw))
-          stproxy_ng.StratumProxy(host, int(port), user, passw)
-          return True
+     def create_pool(self, host, port, user, passw, pool_id):
+          log.info('create pool..........%s %s %s %s %s' % (host, port, user, passw, pool_id))
+          stp = stproxy_ng.StratumProxy(host, int(port), user, passw, pool_id)
+          return [pool_id]
 
      def destroy_pool(self, pool_id):
           log.info('destroy pool..................%s' % pool_id)
@@ -103,8 +103,8 @@ class StratumControlService(GenericService):
           l = []
           for x in stratum.connection_registry.ConnectionRegistry.iterate():
               c = x()
-              l.append([str(c), str(c.get_ident())])
-              log.info('connection -> %s ident -> %s' % (c, c.get_ident()))
+              l.append([str(c), str(stproxy_ng.StratumServer.get_ident(c))])
+              log.info('connection -> %s ident -> %s' % (c, stproxy_ng.StratumServer.get_ident(c)))
 
           log.info(".........list connections")
 

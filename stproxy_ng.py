@@ -22,6 +22,7 @@ from stratum.socket_transport import SocketTransportFactory, SocketTransportClie
 
 from stratum import settings
 from stratum.services import ServiceEventHandler
+from stratum.protocol import ClientProtocol
 from mining_libs import stratum_listener
 from mining_libs import client_service
 from mining_libs import jobs
@@ -36,12 +37,14 @@ class StratumServer():
     miner2conn = {}
     stp = None
 
+    @staticmethod
+    def get_ident(conn):
+        o = conn.factory if isinstance(conn, ClientProtocol) else conn
+        return "%s:%s" % (conn.proxied_ip or conn.transport.getPeer().host, "%x" % id(o))
+
     @classmethod
     def _set_pool_proxy(cls, pool_id, proxy):
          cls.pool2proxy[pool_id] = proxy 
-
-    def _clr_pool_proxy(cls, pool_id):
-         del cls.pool2proxy[pool_id]
 
     @classmethod
     def _get_pool_proxy(cls, pool_id):
@@ -69,10 +72,10 @@ class StratumServer():
             settings.POOL_HOST,
             settings.POOL_PORT,
             settings.POOL_USER,
-            settings.POOL_PASS)
+            settings.POOL_PASS,
+            '0')
         # Setup stratum listener
         if settings.STRATUM_PORT > 0:
-            #stratum_listener.StratumProxyService._set_stratum_proxy(StratumServer.stp)
             self.f = SocketTransportFactory(
                 debug=False,
                 event_handler=ServiceEventHandler)
@@ -102,7 +105,7 @@ class StratumServer():
 class StratumProxy():
     set_extranonce_pools = ['nicehash.com']
 
-    def __init__(self, host, port, user, passw):
+    def __init__(self, host, port, user, passw, pool_id):
         self.difficulty = 1
         self.last_broadcast = None 
         self.use_set_extranonce = False
@@ -114,6 +117,7 @@ class StratumProxy():
         self._detect_set_extranonce()
         self.job_registry = jobs.JobRegistry()
         self.auth = (user, passw)
+        self.pool_id = pool_id
         self.f = SocketTransportClientFactory(
             host,
             port,
@@ -130,15 +134,14 @@ class StratumProxy():
 
     @defer.inlineCallbacks
     def on_connect(self, f):
-
-        # Set the pool proxy into table
-        StratumServer._set_pool_proxy(f.client.get_ident(), self)
-
-        # Broadcast the event
-        control.PoolSubscription.emit(f.client.get_ident())
-
         '''Callback when proxy get connected to the pool'''
         f.on_connect.addCallback(self.on_connect)
+
+        # Set the pool proxy into table
+        StratumServer._set_pool_proxy(StratumServer.get_ident(f.client), self)
+
+        # Broadcast the event
+        control.PoolSubscription.emit(self.pool_id, StratumServer.get_ident(f.client))
 
         # Subscribe proxy
         log.info("Subscribing for mining jobs")
@@ -157,4 +160,5 @@ class StratumProxy():
     def on_disconnect(self, f):
         '''Callback when proxy get disconnected from the pool'''
         f.on_disconnect.addCallback(self.on_disconnect)
+        control.PoolSubscription.emit(self.pool_id)
         stratum_listener.MiningSubscription.reconnect_all(self)
