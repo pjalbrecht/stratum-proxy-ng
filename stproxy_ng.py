@@ -37,11 +37,6 @@ class StratumServer():
     miner2conn = {}
     stp = None
 
-    @staticmethod
-    def get_ident(conn):
-        o = conn.factory if isinstance(conn, ClientProtocol) else conn
-        return "%s:%s" % (conn.proxied_ip or conn.transport.getPeer().host, "%x" % id(o))
-
     @classmethod
     def _set_pool_proxy(cls, pool_id, proxy):
          cls.pool2proxy[pool_id] = proxy 
@@ -72,8 +67,7 @@ class StratumServer():
             settings.POOL_HOST,
             settings.POOL_PORT,
             settings.POOL_USER,
-            settings.POOL_PASS,
-            '0')
+            settings.POOL_PASS)
         # Setup stratum listener
         if settings.STRATUM_PORT > 0:
             self.f = SocketTransportFactory(
@@ -105,7 +99,7 @@ class StratumServer():
 class StratumProxy():
     set_extranonce_pools = ['nicehash.com']
 
-    def __init__(self, host, port, user, passw, pool_id):
+    def __init__(self, host, port, user, passw):
         self.difficulty = 1
         self.last_broadcast = None 
         self.use_set_extranonce = False
@@ -117,7 +111,6 @@ class StratumProxy():
         self._detect_set_extranonce()
         self.job_registry = jobs.JobRegistry()
         self.auth = (user, passw)
-        self.pool_id = pool_id
         self.f = SocketTransportClientFactory(
             host,
             port,
@@ -138,10 +131,10 @@ class StratumProxy():
         f.on_connect.addCallback(self.on_connect)
 
         # Set the pool proxy into table
-        StratumServer._set_pool_proxy(StratumServer.get_ident(f.client), self)
+        StratumServer._set_pool_proxy(id(f.client.factory), self)
 
         # Broadcast the event
-        control.PoolSubscription.emit(self.pool_id, StratumServer.get_ident(f.client))
+        control.PoolConnectSubscription.emit(id(f))
 
         # Subscribe proxy
         log.info("Subscribing for mining jobs")
@@ -160,5 +153,5 @@ class StratumProxy():
     def on_disconnect(self, f):
         '''Callback when proxy get disconnected from the pool'''
         f.on_disconnect.addCallback(self.on_disconnect)
-        control.PoolSubscription.emit(self.pool_id)
+        control.PoolDisconnectSubscription.emit(id(f))
         stratum_listener.MiningSubscription.reconnect_all(self)

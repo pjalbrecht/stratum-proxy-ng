@@ -16,16 +16,20 @@ class ConnectPoolException(ServiceException):
 class ShareSubscription(pubsub.Subscription):
     event = 'control.share'
 
-class PoolSubscription(pubsub.Subscription):
-    event = 'control.pool'
+class PoolConnectSubscription(pubsub.Subscription):
+    event = 'control.pool_connect'
 
     def after_subscribe(self, result):
         log.info('after pool subscribe....................')
         for k,v in stproxy_ng.StratumServer.pool2proxy.iteritems():
-            PoolSubscription.emit(v.pool_id, k)
-            log.info('%s %s' % (v.pool_id, k))
+            pool_id = id(v.f) 
+            log.info('%s' % (pool_id))
+            PoolConnectSubscription.emit(pool_id)
         log.info('....................after pool subscribe')
         return result
+
+class PoolDisconnectSubscription(pubsub.Subscription):
+    event = 'control.pool_disconnect'
 
 class MinerSubscription(pubsub.Subscription):
     event = 'control.miner'
@@ -43,9 +47,10 @@ class StratumControlService(GenericService):
      service_vendor = 'mining_proxy'
      is_default = True
 
-     def create_pool(self, host, port, user, passw, pool_id):
-          log.info('create pool..........%s %s %s %s %s' % (host, port, user, passw, pool_id))
-          stp = stproxy_ng.StratumProxy(host, int(port), user, passw, pool_id)
+     def create_pool(self, host, port, user, passw):
+          log.info('create pool..........%s %s %s %s' % (host, port, user, passw))
+          stp = stproxy_ng.StratumProxy(host, int(port), user, passw)
+          pool_id = id(stp.f)
           return [pool_id]
 
      def destroy_pool(self, pool_id):
@@ -103,8 +108,8 @@ class StratumControlService(GenericService):
           l = []
           for x in stratum.connection_registry.ConnectionRegistry.iterate():
               c = x()
-              l.append([str(c), str(stproxy_ng.StratumServer.get_ident(c))])
-              log.info('connection -> %s ident -> %s' % (c, stproxy_ng.StratumServer.get_ident(c)))
+              l.append([str(c), str(c.get_ident())])
+              log.info('connection -> %s ident -> %s' % (c, c.get_ident()))
 
           log.info(".........list connections")
 
@@ -158,8 +163,12 @@ class StratumControlService(GenericService):
           return ShareSubscription()
 
      @pubsub.subscribe
-     def subscribe_pool(self):
-          return PoolSubscription()
+     def subscribe_poolconnect(self):
+          return PoolConnectSubscription()
+
+     @pubsub.subscribe
+     def subscribe_pooldisconnect(self):
+          return PoolDisconnectSubscription()
 
      @pubsub.subscribe
      def subscribe_miner(self):
