@@ -31,6 +31,14 @@ elif sys.argv[2] == 'connectpool':
     l = [ int(d['pool']), d['miner'] ]
     msg = {'id': 1234, 'method': 'control.' + 'connect_pool', 'params': l}
     print msg
+elif sys.argv[2] == 'deletepool':
+    l = [ int(d['pool']) ]
+    msg = {'id': 1234, 'method': 'control.' + 'delete_pool', 'params': l}
+    print msg
+elif sys.argv[2] == 'defaultpool':
+    l = []
+    msg = {'id': 1234, 'method': 'control.' + 'default_pool', 'params': l}
+    print msg
 elif sys.argv[2] == 'listconnections':
     l = []
     msg = {'id': 1234, 'method': 'control.' + 'list_connections', 'params': l}

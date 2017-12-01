@@ -133,7 +133,7 @@ class StratumProxy():
         # Set the pool proxy into table
         StratumServer._set_pool_proxy(id(f.client.factory), self)
 
-        # Broadcast the event
+        # Broadcast connect event
         control.PoolConnectSubscription.emit(id(f))
 
         # Subscribe proxy
@@ -150,8 +150,12 @@ class StratumProxy():
         log.info( "Authorizing user %s, password %s" % self.auth)
         f.rpc('mining.authorize', [self.auth[0], self.auth[1]])
 
+        # Connect miners
+        stratum_listener.MiningSubscription.reconnect_all(self)
+
     def on_disconnect(self, f):
         '''Callback when proxy get disconnected from the pool'''
         f.on_disconnect.addCallback(self.on_disconnect)
+
+        # Broadcast disconnect event
         control.PoolDisconnectSubscription.emit(id(f))
-        stratum_listener.MiningSubscription.reconnect_all(self)

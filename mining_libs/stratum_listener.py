@@ -9,7 +9,7 @@ log = stratum.logger.get_logger('proxy')
 
 import stproxy_ng
 
-from control import ShareSubscription, MinerSubscription
+from control import ShareSubscription, MinerConnectSubscription
 
 class SubmitException(ServiceException):
     code = -2
@@ -41,11 +41,11 @@ class MiningSubscription(Subscription):
     @classmethod
     def reconnect_all(cls, stp):
         for subs in Pubsub.iterate_subscribers(cls.event):
-            session = self.connection_ref().get_session()
+            session = subs.connection_ref().get_session()
             if session['proxy'] is not stp:
                continue
             if subs.connection_ref().transport is not None:
-                subs.connection_ref().transport.loseConnection()
+               subs.connection_ref().transport.loseConnection()
 
     @classmethod
     def on_template(
@@ -112,7 +112,8 @@ class MiningSubscription(Subscription):
             version,
             nbits,
             ntime,
-            True)
+            True,
+            proxy=self.stp)
         return result
 
     def process(self, *args, **kwargs):
@@ -131,10 +132,10 @@ class StratumProxyService(GenericService):
     def subscribe(self, *args):
         conn = self.connection_ref()
 
-        MinerSubscription.emit(conn._get_ip())
-
         stp = stproxy_ng.StratumServer._get_miner_proxy(conn._get_ip())
         stproxy_ng.StratumServer._set_miner_conn(conn._get_ip(), conn)
+
+        MinerConnectSubscription.emit(conn._get_ip(), id(stp.f))
 
         job_registry = stp.job_registry
 
@@ -144,7 +145,6 @@ class StratumProxyService(GenericService):
         (tail, extranonce2_size) = job_registry._get_unused_tail()
         # Remove extranonce from registry when client disconnect
         conn.on_disconnect.addCallback(job_registry._drop_tail, tail)
-        #session = self.connection_ref().get_session()
         session['tail'] = tail
 
         subs1 = Pubsub.subscribe(conn, DifficultySubscription(stp))[0]
@@ -192,7 +192,7 @@ class StratumProxyService(GenericService):
                  worker_name,
                  difficulty,
                  str(exc)))
-            ShareSubscription.emit(job_id, f.client._get_ip(), origin_worker_name, worker_name, difficulty, False)
+            ShareSubscription.emit(start, id(f), job_id, f.client._get_ip(), origin_worker_name, worker_name, difficulty, False)
             raise SubmitException(*exc.args)
 
         response_time = (time.time() - start) * 1000
@@ -204,7 +204,7 @@ class StratumProxyService(GenericService):
              worker_name,
              difficulty))
 
-        ShareSubscription.emit(job_id, f.client._get_ip(), origin_worker_name, worker_name, difficulty, True)
+        ShareSubscription.emit(start, id(f), job_id, f.client._get_ip(), origin_worker_name, worker_name, difficulty, True)
 
         defer.returnValue(result)
 
