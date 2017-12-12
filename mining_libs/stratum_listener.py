@@ -11,6 +11,9 @@ import stproxy_ng
 
 from control import ShareSubscription, MinerConnectSubscription
 
+class SubscribeException(ServiceException):
+    code = -2
+
 class SubmitException(ServiceException):
     code = -2
 
@@ -129,32 +132,45 @@ class StratumProxyService(GenericService):
     def authorize(self, worker_name, worker_password, *args):
         return True
 
+    @defer.inlineCallbacks
     def subscribe(self, *args):
         conn = self.connection_ref()
+
+        if conn is None or not conn.connected:
+            log.info('subscribe miner connection lost.............................%s' % (conn))
+            raise SubscribeException("Miner connection lost")
 
         stp = stproxy_ng.StratumServer._get_miner_proxy(conn._get_ip())
         stproxy_ng.StratumServer._set_miner_conn(conn._get_ip(), conn)
 
-        MinerConnectSubscription.emit(conn._get_ip(), id(stp.f))
+        try:
+            yield stp.connected
+            log.info('subscribe yield proxy connected result......................%s %s' % (conn, stp))
+        except Exception as e:
+            log.info('subscribe yield proxy connected exception.................. %s %s %s' % (conn, stp, e))
 
-        job_registry = stp.job_registry
+        if not conn.connected:
+            log.info('subscribe miner connection lost.............................%s %s' % (conn, stp))
+            raise SubscribeException("Miner connection lost")
+
+        MinerConnectSubscription.emit(conn._get_ip(), id(stp.f))
 
         session = conn.get_session()
         session['proxy'] = stp
 
-        (tail, extranonce2_size) = job_registry._get_unused_tail()
+        (tail, extranonce2_size) = stp.job_registry._get_unused_tail()
         # Remove extranonce from registry when client disconnect
-        conn.on_disconnect.addCallback(job_registry._drop_tail, tail)
+        conn.on_disconnect.addCallback(stp.job_registry._drop_tail, tail)
         session['tail'] = tail
 
         subs1 = Pubsub.subscribe(conn, DifficultySubscription(stp))[0]
         subs2 = Pubsub.subscribe(conn, MiningSubscription(stp))[0]
 
         log.info(
-            "Sending subscription to worker: %s/%s" %
-            (job_registry.extranonce1 + tail, extranonce2_size))
+            "Sending subscription to worker: %s/%s connection: %s proxy: %s" %
+            (stp.job_registry.extranonce1 + tail, extranonce2_size, conn, stp))
 
-        return ((subs1, subs2),) + (job_registry.extranonce1 + tail, extranonce2_size)
+        defer.returnValue( ((subs1, subs2),) + (stp.job_registry.extranonce1 + tail, extranonce2_size) )
 
     @defer.inlineCallbacks
     def submit(
@@ -165,24 +181,35 @@ class StratumProxyService(GenericService):
             ntime,
             nonce,
             *args):
-        session = self.connection_ref().get_session()
+        conn = self.connection_ref()
 
-        tail = session.get('tail')
-        if tail is None:
+        if conn is None or not conn.connected:
+            log.info('submit miner connection lost................................%s' % (conn))
+            raise SubmitException("Miner connection lost")
+
+        session = conn.get_session()
+
+        try:
+            stp = session['proxy']
+        except KeyError:
+            log.info('submit miner is not connected to proxy......................%s' % (conn))
+            raise SubmitException("Connection is not connected to proxy")
+
+        try:
+            tail = session['tail']
+        except KeyError:
+            log.info('submit miner is not subscribed..............................%s %s' % (conn, stp))
             raise SubmitException("Connection is not subscribed")
-
-        stp = session['proxy']
-        f = stp.f
-        job_registry = stp.job_registry
 
         worker_name = stp.auth[0]
 
-        job = job_registry.get_job_from_id(job_id)
+        job = stp.job_registry.get_job_from_id(job_id)
         difficulty = job.diff if job is not None else stp.difficulty
 
+        start = time.time()
+
         try:
-            start = time.time()
-            result = (yield f.rpc('mining.submit', [worker_name, job_id, tail + extranonce2, ntime, nonce]))
+            result = (yield stp.f.rpc('mining.submit', [worker_name, job_id, tail + extranonce2, ntime, nonce]))
         except RemoteServiceException as exc:
             response_time = (time.time() - start) * 1000
             log.info(
@@ -192,7 +219,7 @@ class StratumProxyService(GenericService):
                  worker_name,
                  difficulty,
                  str(exc)))
-            ShareSubscription.emit(start, id(f), job_id, f.client._get_ip(), origin_worker_name, worker_name, difficulty, False)
+            ShareSubscription.emit(start, id(stp.f), job_id, stp.f.client._get_ip(), origin_worker_name, worker_name, difficulty, False)
             raise SubmitException(*exc.args)
 
         response_time = (time.time() - start) * 1000
@@ -204,7 +231,7 @@ class StratumProxyService(GenericService):
              worker_name,
              difficulty))
 
-        ShareSubscription.emit(start, id(f), job_id, f.client._get_ip(), origin_worker_name, worker_name, difficulty, True)
+        ShareSubscription.emit(start, id(stp.f), job_id, stp.f.client._get_ip(), origin_worker_name, worker_name, difficulty, True)
 
         defer.returnValue(result)
 

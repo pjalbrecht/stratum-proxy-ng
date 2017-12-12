@@ -111,12 +111,14 @@ class StratumProxy():
         self._detect_set_extranonce()
         self.job_registry = jobs.JobRegistry()
         self.auth = (user, passw)
+        self.connected = defer.Deferred()
+        self.authorized = False
         self.f = SocketTransportClientFactory(
             host,
             port,
             debug=True,
             event_handler=client_service.ClientMiningService)
-        self.f.on_connect.addCallback(self.on_connect)
+        self.f.on_connect.addCallbacks(self.on_connect, self.on_timeout)
         self.f.on_disconnect.addCallback(self.on_disconnect)
 
     def _detect_set_extranonce(self):
@@ -125,10 +127,16 @@ class StratumProxy():
             if self.host.find(pool) > 0:
                 self.use_set_extranonce = True
 
+    def on_timeout(self, e):
+        log.info('on timeout..................... %s' % (self))
+        self.f.on_connect.addCallbacks(self.on_connect, self.on_timeout)
+
     @defer.inlineCallbacks
     def on_connect(self, f):
-        '''Callback when proxy get connected to the pool'''
-        f.on_connect.addCallback(self.on_connect)
+        log.info('on connect..................... %s' % (self))
+
+        # Callback when proxy get connected to the pool
+        f.on_connect.addCallbacks(self.on_connect, self.on_timeout)
 
         # Set the pool proxy into table
         StratumServer._set_pool_proxy(id(f.client.factory), self)
@@ -137,25 +145,52 @@ class StratumProxy():
         control.PoolConnectSubscription.emit(id(f))
 
         # Subscribe proxy
-        log.info("Subscribing for mining jobs")
-        (_, extranonce1, extranonce2_size) = (yield self.f.rpc('mining.subscribe', [settings.USER_AGENT]))[:3]
-        self.job_registry.set_extranonce(extranonce1, extranonce2_size)
+        log.info("Subscribing for mining jobs %s" % (self))
+        try:
+            (_, extranonce1, extranonce2_size) = (yield self.f.rpc('mining.subscribe', [settings.USER_AGENT]))[:3]
+            self.job_registry.set_extranonce(extranonce1, extranonce2_size)
+        except Exception as e:
+            log.info('on connect subscription failed..................%s %s' % (e, self))
+            return
 
         # Set extranonce
         if self.use_set_extranonce:
-            log.info("Enable extranonce subscription method")
-            f.rpc('mining.extranonce.subscribe', [])
+            log.info("Enable extranonce subscription method %s" % (self))
+            try:
+                f.rpc('mining.extranonce.subscribe', [])
+            except Exception as e:
+                log.info('extranonce subscription failed..............%s %s' % (e, self))
+                return
 
         # Authorize proxy
-        log.info( "Authorizing user %s, password %s" % self.auth)
-        f.rpc('mining.authorize', [self.auth[0], self.auth[1]])
+        log.info( "Authorizing user %s, password %s, proxy %s" % (self.auth[0], self.auth[1], self))
+        try:
+            self.authorized = (yield f.rpc('mining.authorize', [self.auth[0], self.auth[1]]))
+        except Exception as e:
+            log.info('on connect authorization failed.................%s %s' % (e, self))
 
-        # Connect miners
-        stratum_listener.MiningSubscription.reconnect_all(self)
+        if not self.authorized:
+            log.info('on connect authorization failed...................%s' % (self))
+
+        log.info('.....................on connect %s' % (self))
+
+        # Proxy connected
+        self.connected.callback(self)
 
     def on_disconnect(self, f):
-        '''Callback when proxy get disconnected from the pool'''
+        log.info('on disconnect................. %s' % (self))
+
+        # Callback when proxy get disconnected from the pool
         f.on_disconnect.addCallback(self.on_disconnect)
 
         # Broadcast disconnect event
         control.PoolDisconnectSubscription.emit(id(f))
+
+        # Reset connected deferred
+        if self.connected.called:
+            self.connected = defer.Deferred()
+
+        # Connect miners
+        stratum_listener.MiningSubscription.reconnect_all(self)
+
+        log.info('..................on disconnect %s' % (self))
