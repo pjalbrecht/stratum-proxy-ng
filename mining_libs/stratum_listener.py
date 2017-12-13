@@ -141,7 +141,6 @@ class StratumProxyService(GenericService):
             raise SubscribeException("Miner connection lost")
 
         stp = stproxy_ng.StratumServer._get_miner_proxy(conn._get_ip())
-        stproxy_ng.StratumServer._set_miner_conn(conn._get_ip(), conn)
 
         try:
             yield stp.connected

@@ -34,7 +34,6 @@ log = stratum.logger.get_logger('proxy')
 class StratumServer():
     pool2proxy = {}
     miner2proxy = {}
-    miner2conn = {}
     stp = None
 
     @classmethod
@@ -53,14 +52,6 @@ class StratumServer():
     def _get_miner_proxy(cls, miner_id):
          cls.miner2proxy.setdefault(miner_id, cls.stp)
          return cls.miner2proxy[miner_id]
-
-    @classmethod
-    def _set_miner_conn(cls, miner_id, conn):
-         cls.miner2conn[miner_id] = conn
-
-    @classmethod
-    def _get_miner_conn(cls, miner_id):
-         return cls.miner2conn[miner_id]
 
     def __init__(self):
         StratumServer.stp = StratumProxy(

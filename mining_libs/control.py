@@ -103,9 +103,13 @@ class StratumControlService(GenericService):
             raise ConnectPoolException('Connect pool--Invalid miner!')
 
         stproxy_ng.StratumServer._set_miner_proxy(miner_id, stp)
-        conn = stproxy_ng.StratumServer._get_miner_conn(miner_id)
 
-        conn.transport.loseConnection() 
+        for ref in stratum.connection_registry.ConnectionRegistry.iterate():
+             conn = ref()
+             if conn is None or conn.transport is None:
+                 continue
+             if conn._get_ip() == miner_id:
+                 conn.transport.loseConnection() 
 
         return True
 
@@ -141,17 +145,9 @@ class StratumControlService(GenericService):
             l2.append([str(miner_id), str(proxy)])
             log.info('%s %s' % (miner_id, proxy))
 
-        c = len(stproxy_ng.StratumServer.miner2conn)
-        log.info('miner2conn: %s' % (c))
-
-        l3 = [c]
-        for miner_id,conn in stproxy_ng.StratumServer.miner2conn.iteritems():
-            l3.append([str(miner_id), str(conn)])
-            log.info('%s %s' % (miner_id, conn))
-
         log.info('..........................list tables')
 
-        return [l1, l2, l3]
+        return [l1, l2]
 
     def list_subscriptions(self):
         log.info("list subscriptions.........")
