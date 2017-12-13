@@ -65,7 +65,7 @@ print ip,port
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.connect((ip, int(port)))
 s.send(serial+'\n')
-resp = s.recv(1024)
+resp = s.recv(8192)
 s.close
 
 print resp
