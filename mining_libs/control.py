@@ -106,10 +106,13 @@ class StratumControlService(GenericService):
 
         for ref in stratum.connection_registry.ConnectionRegistry.iterate():
              conn = ref()
+
              if conn is None or conn.transport is None:
                  continue
+
              if conn._get_ip() == miner_id:
                  conn.transport.loseConnection() 
+                 break
 
         return True
 

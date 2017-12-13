@@ -44,11 +44,15 @@ class MiningSubscription(Subscription):
     @classmethod
     def reconnect_all(cls, stp):
         for subs in Pubsub.iterate_subscribers(cls.event):
-            session = subs.connection_ref().get_session()
-            if session['proxy'] is not stp:
-               continue
-            if subs.connection_ref().transport is not None:
-               subs.connection_ref().transport.loseConnection()
+            conn = subs.connection_ref()
+
+            if conn is None or conn.transport is None:
+                continue
+
+            session = conn.get_session()
+
+            if session['proxy'] is stp:
+               conn.transport.loseConnection()
 
     @classmethod
     def on_template(
