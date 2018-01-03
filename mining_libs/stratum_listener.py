@@ -140,7 +140,7 @@ class StratumProxyService(GenericService):
     def subscribe(self, *args):
         conn = self.connection_ref()
 
-        if conn is None or not conn.connected:
+        if conn is None or not conn.transport:
             log.info('subscribe miner connection lost.............................%s' % (conn))
             raise SubscribeException("Miner connection lost")
 
@@ -152,7 +152,7 @@ class StratumProxyService(GenericService):
         except Exception as e:
             log.info('subscribe yield proxy connected exception.................. %s %s %s' % (conn, stp, e))
 
-        if not conn.connected:
+        if not conn.transport:
             log.info('subscribe miner connection lost.............................%s %s' % (conn, stp))
             raise SubscribeException("Miner connection lost")
 
@@ -186,7 +186,7 @@ class StratumProxyService(GenericService):
             *args):
         conn = self.connection_ref()
 
-        if conn is None or not conn.connected:
+        if conn is None or not conn.transport:
             log.info('submit miner connection lost................................%s' % (conn))
             raise SubmitException("Miner connection lost")
 
