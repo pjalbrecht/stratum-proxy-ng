@@ -2,6 +2,8 @@ import sys
 import json
 import socket
 
+from pprint import pprint
+
 def niceprint(data):
     return json.dumps(
         data,
@@ -51,21 +53,29 @@ elif sys.argv[2] == 'listsubscriptions':
     l = []
     msg = {'id': 1234, 'method': 'control.' + 'list_subscriptions', 'params': l}
     print msg
+elif sys.argv[2] == 'addblacklist':
+    l = [ d['miner'] ]
+    msg = {'id': 1234, 'method': 'control.' + 'add_blacklist', 'params': l}
+    print msg
+elif sys.argv[2] == 'deleteblacklist':
+    l = [ d['miner'] ]
+    msg = {'id': 1234, 'method': 'control.' + 'delete_blacklist', 'params': l}
+    print msg
 else:
     msg = {}
     pass
 
-print niceprint(msg)
+#print niceprint(msg)
 serial = json.dumps(msg)
-print serial
+#print serial
 
 ip, port = sys.argv[1].split(':')
-print ip,port
+#print ip,port
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.connect((ip, int(port)))
 s.send(serial+'\n')
-resp = s.recv(8192)
+resp = json.loads(s.recv(8192).decode('utf-8'))
 s.close
 
-print resp
+pprint(resp)

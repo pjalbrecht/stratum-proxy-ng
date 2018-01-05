@@ -41,7 +41,10 @@ class MinerConnectSubscription(pubsub.Subscription):
         log.info('after miner connect subscribe...................')
 
         for miner_id,proxy in stproxy_ng.StratumServer.miner2proxy.iteritems():
-            MinerConnectSubscription.emit(miner_id, id(proxy.f))
+            pool_id = id(proxy.f) if proxy is not None else 0
+
+            MinerConnectSubscription.emit(miner_id, pool_id)
+
             log.info(miner_id)
 
         log.info('...................after miner connect subscribe')
@@ -194,6 +197,41 @@ class StratumControlService(GenericService):
         log.info(".........list subscriptions")
 
         return [l1, l2, l3]
+
+    def add_blacklist(self, miner_id):
+        log.info('add black list %s.............................' % (miner_id))
+
+        if miner_id not in stproxy_ng.StratumServer.miner2proxy:
+            return False
+
+        stproxy_ng.StratumServer._set_miner_proxy(miner_id, None)
+
+        for ref in stratum.connection_registry.ConnectionRegistry.iterate():
+             conn = ref()
+
+             if conn is None or conn.transport is None:
+                 continue
+
+             if conn._get_ip() == miner_id:
+                 conn.transport.loseConnection() 
+                 break
+
+        log.info('.............................add black list')
+        return True
+
+    def delete_blacklist(self, miner_id):
+        log.info('delete black list %s..........................' % (miner_id))
+
+        if miner_id not in stproxy_ng.StratumServer.miner2proxy:
+            return False
+
+        if stproxy_ng.StratumServer.miner2proxy[miner_id] is not None:
+            return False
+
+        del stproxy_ng.StratumServer.miner2proxy[miner_id]
+
+        log.info('..........................delete black list')
+        return True
 
     @pubsub.subscribe
     def subscribe_share(self):

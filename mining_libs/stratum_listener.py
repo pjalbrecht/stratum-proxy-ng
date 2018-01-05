@@ -17,6 +17,9 @@ class SubscribeException(ServiceException):
 class SubmitException(ServiceException):
     code = -2
 
+class BlacklistException(ServiceException):
+    code = -2
+
 class DifficultySubscription(Subscription):
     event = 'mining.set_difficulty'
 
@@ -145,6 +148,10 @@ class StratumProxyService(GenericService):
             raise SubscribeException("Miner connection lost")
 
         stp = stproxy_ng.StratumServer._get_miner_proxy(conn._get_ip())
+
+        if stp is None:
+            log.info('subscribe miner blacklisted.................................%s' % (conn))
+            raise BlacklistException('Miner blacklisted')
 
         try:
             yield stp.connected
