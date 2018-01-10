@@ -67,8 +67,7 @@ class StratumServer():
             reactor.addSystemEventTrigger(
                 'before',
                 'shutdown',
-                self.on_shutdown,
-                StratumServer.stp.f)
+                self.on_shutdown)
             log.info(
                 "Proxy is listening on port %d (stratum)" %
                 (settings.STRATUM_PORT))
@@ -81,11 +80,12 @@ class StratumServer():
                     event_handler=ServiceEventHandler),
                 interface=settings.CONTROL_HOST)
 
-    def on_shutdown(self, f):
+    def on_shutdown(self):
         '''Clean environment properly'''
         log.info("Shutting down proxy...")
         # Don't let stratum factory to reconnect again
-        f.is_reconnecting = False
+        for proxy in self.pool2proxy.itervalues(): 
+            proxy.f.is_reconnecting = False
 
 class StratumProxy():
     set_extranonce_pools = ['nicehash.com']
