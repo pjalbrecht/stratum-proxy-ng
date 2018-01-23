@@ -4,78 +4,56 @@ import socket
 
 from pprint import pprint
 
-def niceprint(data):
-    return json.dumps(
-        data,
-        sort_keys=True,
-        indent=4,
-        separators=(
-            ',',
-            ': ')).__str__()
-
 if len(sys.argv) < 3:
-    print(
-        "Usage: %s <ip:control_port> <query> [key1=value1 key2=value2]" %
-        sys.argv[0])
-    sys.exit(1)
+    err = 'Usage: control.py ' + '<ip:control_port> <query> [key1=value1 key2=value2]'
+    sys.exit(err)
 
 d = {}
-
 for a in sys.argv[3::]:
     k, v = a.split('=', 1)
     d[k] = v
 
 if sys.argv[2] == 'createpool':
-    l = [ d['host'], d['port'], d['user'], d['pass'] ]
-    msg = {'id': 1234, 'method': 'control.' + 'create_pool', 'params': l}
-    print msg
+    msg = {'id': 1, 'method': 'control.' + 'create_pool', 'params': [ d['host'], d['port'], d['user'], d['pass'] ]}
 elif sys.argv[2] == 'connectpool':
-    l = [ int(d['pool']), d['miner'] ]
-    msg = {'id': 1234, 'method': 'control.' + 'connect_pool', 'params': l}
-    print msg
+    msg = {'id': 1, 'method': 'control.' + 'connect_pool', 'params': [ int(d['pool']), d['miner'] ]}
 elif sys.argv[2] == 'deletepool':
-    l = [ int(d['pool']) ]
-    msg = {'id': 1234, 'method': 'control.' + 'delete_pool', 'params': l}
-    print msg
+    msg = {'id': 1, 'method': 'control.' + 'delete_pool', 'params': [ int(d['pool']) ]}
 elif sys.argv[2] == 'defaultpool':
-    l = []
-    msg = {'id': 1234, 'method': 'control.' + 'default_pool', 'params': l}
-    print msg
+    msg = {'id': 1, 'method': 'control.' + 'default_pool', 'params': []}
 elif sys.argv[2] == 'listconnections':
-    l = []
-    msg = {'id': 1234, 'method': 'control.' + 'list_connections', 'params': l}
-    print msg
+    msg = {'id': 1, 'method': 'control.' + 'list_connections', 'params': []}
 elif sys.argv[2] == 'listtables':
-    l = []
-    msg = {'id': 1234, 'method': 'control.' + 'list_tables', 'params': l}
-    print msg
+    msg = {'id': 1, 'method': 'control.' + 'list_tables', 'params': []}
 elif sys.argv[2] == 'listsubscriptions':
-    l = []
-    msg = {'id': 1234, 'method': 'control.' + 'list_subscriptions', 'params': l}
-    print msg
+    msg = {'id': 1, 'method': 'control.' + 'list_subscriptions', 'params': []}
 elif sys.argv[2] == 'addblacklist':
-    l = [ d['miner'] ]
-    msg = {'id': 1234, 'method': 'control.' + 'add_blacklist', 'params': l}
-    print msg
+    msg = {'id': 1, 'method': 'control.' + 'add_blacklist', 'params': [ d['miner'] ]}
 elif sys.argv[2] == 'deleteblacklist':
-    l = [ d['miner'] ]
-    msg = {'id': 1234, 'method': 'control.' + 'delete_blacklist', 'params': l}
-    print msg
+    msg = {'id': 1, 'method': 'control.' + 'delete_blacklist', 'params': [ d['miner'] ]}
 else:
-    msg = {}
-    pass
+    err = 'Invalid message: ' + sys.argv[2]
+    sys.exit(err)
 
-#print niceprint(msg)
+pprint(msg)
+
 serial = json.dumps(msg)
-#print serial
 
 ip, port = sys.argv[1].split(':')
-#print ip,port
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
 s.connect((ip, int(port)))
+
 s.send(serial+'\n')
-resp = json.loads(s.recv(8192).decode('utf-8'))
+
+resp = ''
+while True:
+    resp = resp + s.recv(1024).decode('utf-8')
+    if resp[len(resp)-2] == '}' : break
+
 s.close
+
+resp = json.loads(resp)
 
 pprint(resp)
