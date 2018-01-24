@@ -59,26 +59,19 @@ class StratumServer():
             settings.POOL_PORT,
             settings.POOL_USER,
             settings.POOL_PASS)
-        # Setup stratum listener
-        if settings.STRATUM_PORT > 0:
-            self.f = SocketTransportFactory(
-                debug=False,
-                event_handler=ServiceEventHandler)
-            reactor.addSystemEventTrigger(
-                'before',
-                'shutdown',
-                self.on_shutdown)
-            log.info(
-                "Proxy is listening on port %d (stratum)" %
-                (settings.STRATUM_PORT))
-        # Setup control listener
-        if settings.CONTROL_PORT > 0:
-            reactor.listenTCP(
-                settings.CONTROL_PORT,
-                SocketTransportFactory(
-                    debug=True,
-                    event_handler=ServiceEventHandler),
-                interface=settings.CONTROL_HOST)
+
+        self.f = SocketTransportFactory(
+            debug=False,
+            event_handler=ServiceEventHandler)
+
+        reactor.addSystemEventTrigger(
+            'before',
+            'shutdown',
+            self.on_shutdown)
+
+        log.info(
+            "Proxy is listening on port %d (stratum)" %
+            (settings.STRATUM_PORT))
 
     def on_shutdown(self):
         '''Clean environment properly'''
@@ -86,6 +79,12 @@ class StratumServer():
         # Don't let stratum factory to reconnect again
         for proxy in self.pool2proxy.itervalues(): 
             proxy.f.is_reconnecting = False
+
+class StratumControl():
+    def __init__(self):
+        self.f = SocketTransportFactory(
+                     debug=True,
+                     event_handler=ServiceEventHandler)
 
 class StratumProxy():
     set_extranonce_pools = ['nicehash.com']
