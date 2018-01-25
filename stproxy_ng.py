@@ -36,23 +36,6 @@ class StratumServer():
     miner2proxy = {}
     stp = None
 
-    @classmethod
-    def _set_pool_proxy(cls, pool_id, proxy):
-         cls.pool2proxy[pool_id] = proxy 
-
-    @classmethod
-    def _get_pool_proxy(cls, pool_id):
-         return cls.pool2proxy[pool_id]
-
-    @classmethod
-    def _set_miner_proxy(cls, miner_id, proxy):
-         cls.miner2proxy[miner_id] = proxy
-
-    @classmethod
-    def _get_miner_proxy(cls, miner_id):
-         cls.miner2proxy.setdefault(miner_id, cls.stp)
-         return cls.miner2proxy[miner_id]
-
     def __init__(self):
         StratumServer.stp = StratumProxy(
             settings.POOL_HOST,
@@ -85,6 +68,10 @@ class StratumControl():
         self.f = SocketTransportFactory(
                      debug=True,
                      event_handler=ServiceEventHandler)
+
+        log.info(
+            "Proxy is listening on port %d (control)" %
+            (settings.CONTROL_PORT))
 
 class StratumProxy():
     set_extranonce_pools = ['nicehash.com']
@@ -129,7 +116,7 @@ class StratumProxy():
         f.on_connect.addCallbacks(self.on_connect, self.on_timeout)
 
         # Set the pool proxy into table
-        StratumServer._set_pool_proxy(id(f.client.factory), self)
+        StratumServer.pool2proxy[id(f)] = self
 
         # Broadcast connect event
         control.PoolConnectSubscription.emit(id(f))

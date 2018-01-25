@@ -96,7 +96,7 @@ class StratumControlService(GenericService):
         log.info('connect pool...............%s %s' % (pool_id, miner_id))
 
         try:
-            stp = stproxy_ng.StratumServer._get_pool_proxy(pool_id)
+            stp = stproxy_ng.StratumServer.pool2proxy[pool_id]
         except KeyError:
             log.info('connect pool.......invalid pool id: %s' % (pool_id))
             raise ConnectPoolException('Connect pool--Invalid pool!')
@@ -105,7 +105,7 @@ class StratumControlService(GenericService):
             log.info('connect pool.......invalid miner id: %s' % (miner_id))
             raise ConnectPoolException('Connect pool--Invalid miner!')
 
-        stproxy_ng.StratumServer._set_miner_proxy(miner_id, stp)
+        stproxy_ng.StratumServer.miner2proxy[miner_id] = stp
 
         for ref in stratum.connection_registry.ConnectionRegistry.iterate():
              conn = ref()
@@ -204,7 +204,7 @@ class StratumControlService(GenericService):
         if miner_id not in stproxy_ng.StratumServer.miner2proxy:
             return False
 
-        stproxy_ng.StratumServer._set_miner_proxy(miner_id, None)
+        stproxy_ng.StratumServer.miner2proxy[miner_id] = None
 
         for ref in stratum.connection_registry.ConnectionRegistry.iterate():
              conn = ref()

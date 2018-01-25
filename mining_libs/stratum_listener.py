@@ -147,7 +147,7 @@ class StratumProxyService(GenericService):
             log.info('subscribe miner connection lost.............................%s' % (conn))
             raise SubscribeException("Miner connection lost")
 
-        stp = stproxy_ng.StratumServer._get_miner_proxy(conn._get_ip())
+        stp = stproxy_ng.StratumServer.miner2proxy.setdefault(conn._get_ip(), stproxy_ng.StratumServer.stp)
 
         if stp is None:
             log.info('subscribe miner blacklisted.................................%s' % (conn))

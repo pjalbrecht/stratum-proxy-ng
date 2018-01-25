@@ -13,7 +13,7 @@ class ClientMiningService(GenericEventHandler):
     def handle_event(self, method, params, connection_ref):
         '''Handle RPC calls and notifications from the pool'''
 
-        stp = stproxy_ng.StratumServer._get_pool_proxy(id(connection_ref.factory))
+        stp = stproxy_ng.StratumServer.pool2proxy[id(connection_ref.factory)]
 
         if method == 'mining.notify':
             '''Proxy just received information about new mining job'''
