@@ -48,7 +48,6 @@ class JobRegistry(object):
 
     def __init__(self):
         self.jobs = []
-        self.last_job = None
         self.extranonce1 = None
         self.extranonce1_bin = None
         self.extranonce2_size = None
@@ -71,7 +70,6 @@ class JobRegistry(object):
             self.jobs = []
 
         self.jobs.append(template)
-        self.last_job = template
 
     def get_job_from_id(self, job_id):
         job = None

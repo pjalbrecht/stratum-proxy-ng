@@ -68,6 +68,7 @@ class ClientMiningService(GenericEventHandler):
                 nbits,
                 ntime,
                 diff)
+
             log.info("New job %s for prevhash %s, clean_jobs=%s" %
                      (job.job_id, job.prevhash[:8], clean_jobs))
 
