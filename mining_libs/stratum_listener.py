@@ -25,7 +25,7 @@ class DifficultySubscription(Subscription):
 
     @classmethod
     def on_new_difficulty(cls, stp, new_difficulty):
-        stp.difficulty = new_difficulty
+        stp.job_registry.difficulty = new_difficulty
         cls.emit(new_difficulty, proxy=stp)
 
     def __init__(self, stp):
@@ -33,7 +33,7 @@ class DifficultySubscription(Subscription):
         self.stp = stp
 
     def after_subscribe(self, result):
-        self.emit_single(self.stp.difficulty, proxy=self.stp)
+        self.emit_single(self.stp.job_registry.difficulty, proxy=self.stp)
         return result
 
     def process(self, *args, **kwargs):
@@ -214,7 +214,7 @@ class StratumProxyService(GenericService):
         worker_name = stp.auth[0]
 
         job = stp.job_registry.get_job_from_id(job_id)
-        difficulty = job.diff if job is not None else stp.difficulty
+        difficulty = job.diff if job is not None else stp.job_registry.difficulty
 
         start = time.time()
 

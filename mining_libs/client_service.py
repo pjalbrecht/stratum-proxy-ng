@@ -28,7 +28,7 @@ class ClientMiningService(GenericEventHandler):
              ntime,
              clean_jobs) = params[:9]
 
-            diff = stp.difficulty
+            diff = stp.job_registry.difficulty
 
             # print len(str(params)), len(merkle_branch)
             '''

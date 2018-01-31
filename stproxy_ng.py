@@ -77,7 +77,6 @@ class StratumProxy():
     set_extranonce_pools = ['nicehash.com']
 
     def __init__(self, host, port, user, passw):
-        self.difficulty = 1
         self.last_broadcast = None 
         self.use_set_extranonce = False
         log.info(

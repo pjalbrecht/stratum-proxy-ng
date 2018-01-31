@@ -52,6 +52,8 @@ class JobRegistry(object):
         self.extranonce1_bin = None
         self.extranonce2_size = None
 
+        self.difficulty = 1
+
         self.tail_iterator = 0
         self.registered_tails = []
     
