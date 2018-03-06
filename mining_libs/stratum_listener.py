@@ -144,23 +144,23 @@ class StratumProxyService(GenericService):
         conn = self.connection_ref()
 
         if conn is None or not conn.transport:
-            log.info('subscribe miner connection lost.............................%s' % (conn))
+            log.info('subscribe miner connection lost.............................%s', conn)
             raise SubscribeException("Miner connection lost")
 
         stp = stproxy_ng.StratumServer.miner2proxy.setdefault(conn._get_ip(), stproxy_ng.StratumServer.stp)
 
         if stp is None:
-            log.info('subscribe miner blacklisted.................................%s' % (conn))
+            log.info('subscribe miner blacklisted.................................%s', conn)
             raise BlacklistException('Miner blacklisted')
 
         try:
             yield stp.connected
-            log.info('subscribe yield proxy connected result......................%s %s' % (conn, stp))
+            log.info('subscribe yield proxy connected result......................%s %s', conn, stp)
         except Exception as e:
-            log.info('subscribe yield proxy connected exception.................. %s %s %s' % (conn, stp, e))
+            log.info('subscribe yield proxy connected exception.................. %s %s %s', conn, stp, e)
 
         if not conn.transport:
-            log.info('subscribe miner connection lost.............................%s %s' % (conn, stp))
+            log.info('subscribe miner connection lost.............................%s %s', conn, stp)
             raise SubscribeException("Miner connection lost")
 
         MinerConnectSubscription.emit(conn._get_ip(), id(stp.f))
@@ -177,8 +177,8 @@ class StratumProxyService(GenericService):
         subs2 = Pubsub.subscribe(conn, MiningSubscription(stp))[0]
 
         log.info(
-            "Sending subscription to worker: %s/%s connection: %s proxy: %s" %
-            (stp.job_registry.extranonce1 + tail, extranonce2_size, conn, stp))
+            "Sending subscription to worker: %s/%s connection: %s proxy: %s",
+            stp.job_registry.extranonce1 + tail, extranonce2_size, conn, stp)
 
         defer.returnValue( ((subs1, subs2),) + (stp.job_registry.extranonce1 + tail, extranonce2_size) )
 
@@ -194,7 +194,7 @@ class StratumProxyService(GenericService):
         conn = self.connection_ref()
 
         if conn is None or not conn.transport:
-            log.info('submit miner connection lost................................%s' % (conn))
+            log.info('submit miner connection lost................................%s', conn)
             raise SubmitException("Miner connection lost")
 
         session = conn.get_session()
@@ -202,13 +202,13 @@ class StratumProxyService(GenericService):
         try:
             stp = session['proxy']
         except KeyError:
-            log.info('submit miner is not connected to proxy......................%s' % (conn))
+            log.info('submit miner is not connected to proxy......................%s', conn)
             raise SubmitException("Connection is not connected to proxy")
 
         try:
             tail = session['tail']
         except KeyError:
-            log.info('submit miner is not subscribed..............................%s %s' % (conn, stp))
+            log.info('submit miner is not subscribed..............................%s %s', conn, stp)
             raise SubmitException("Connection is not subscribed")
 
         worker_name = stp.auth[0]
@@ -223,23 +223,23 @@ class StratumProxyService(GenericService):
         except RemoteServiceException as exc:
             response_time = (time.time() - start) * 1000
             log.info(
-                "[%dms] Share from %s (%s) REJECTED, diff %d: %s" %
-                (response_time,
+                "[%dms] Share from %s (%s) REJECTED, diff %d: %s",
+                response_time,
                  origin_worker_name,
                  worker_name,
                  difficulty,
-                 str(exc)))
+                 str(exc))
             ShareSubscription.emit(start, id(stp.f), job_id, stp.f.client._get_ip(), origin_worker_name, worker_name, difficulty, False)
             raise SubmitException(*exc.args)
 
         response_time = (time.time() - start) * 1000
 
         log.info(
-            "[%dms] Share from %s (%s) ACCEPTED, diff %d" %
-            (response_time,
+            "[%dms] Share from %s (%s) ACCEPTED, diff %d",
+            response_time,
              origin_worker_name,
              worker_name,
-             difficulty))
+             difficulty)
 
         ShareSubscription.emit(start, id(stp.f), job_id, stp.f.client._get_ip(), origin_worker_name, worker_name, difficulty, True)
 

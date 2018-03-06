@@ -53,8 +53,8 @@ class StratumServer():
             self.on_shutdown)
 
         log.info(
-            "Proxy is listening on port %d (stratum)" %
-            (settings.STRATUM_PORT))
+            "Proxy is listening on port %d (stratum)",
+            settings.STRATUM_PORT)
 
     def on_shutdown(self):
         '''Clean environment properly'''
@@ -70,8 +70,8 @@ class StratumControl():
                      event_handler=ServiceEventHandler)
 
         log.info(
-            "Proxy is listening on port %d (control)" %
-            (settings.CONTROL_PORT))
+            "Proxy is listening on port %d (control)",
+            settings.CONTROL_PORT)
 
 class StratumProxy():
     set_extranonce_pools = ['nicehash.com']
@@ -80,8 +80,8 @@ class StratumProxy():
         self.last_broadcast = None 
         self.use_set_extranonce = False
         log.info(
-            "Connecting to Stratum pool at %s:%d" %
-            (host, port))
+            "Connecting to Stratum pool at %s:%d",
+            host, port)
         self.host = host
         self.port = int(port)
         self._detect_set_extranonce()
@@ -104,12 +104,12 @@ class StratumProxy():
                 self.use_set_extranonce = True
 
     def on_timeout(self, e):
-        log.info('on timeout..................... %s' % (self))
+        log.info('on timeout..................... %s', self)
         self.f.on_connect.addCallbacks(self.on_connect, self.on_timeout)
 
     @defer.inlineCallbacks
     def on_connect(self, f):
-        log.info('on connect..................... %s' % (self))
+        log.info('on connect..................... %s', self)
 
         # Callback when proxy get connected to the pool
         f.on_connect.addCallbacks(self.on_connect, self.on_timeout)
@@ -121,40 +121,40 @@ class StratumProxy():
         control.PoolConnectSubscription.emit(id(f))
 
         # Subscribe proxy
-        log.info("Subscribing for mining jobs %s" % (self))
+        log.info("Subscribing for mining jobs %s", self)
         try:
             (_, extranonce1, extranonce2_size) = (yield self.f.rpc('mining.subscribe', [settings.USER_AGENT]))[:3]
             self.job_registry.set_extranonce(extranonce1, extranonce2_size)
         except Exception as e:
-            log.info('on connect subscription failed..................%s %s' % (e, self))
+            log.info('on connect subscription failed..................%s %s', e, self)
             return
 
         # Set extranonce
         if self.use_set_extranonce:
-            log.info("Enable extranonce subscription method %s" % (self))
+            log.info("Enable extranonce subscription method %s", self)
             try:
                 f.rpc('mining.extranonce.subscribe', [])
             except Exception as e:
-                log.info('extranonce subscription failed..............%s %s' % (e, self))
+                log.info('extranonce subscription failed..............%s %s', e, self)
                 return
 
         # Authorize proxy
-        log.info( "Authorizing user %s, password %s, proxy %s" % (self.auth[0], self.auth[1], self))
+        log.info( "Authorizing user %s, password %s, proxy %s", self.auth[0], self.auth[1], self)
         try:
             self.authorized = (yield f.rpc('mining.authorize', [self.auth[0], self.auth[1]]))
         except Exception as e:
-            log.info('on connect authorization failed.................%s %s' % (e, self))
+            log.info('on connect authorization failed.................%s %s', e, self)
 
         if not self.authorized:
-            log.info('on connect authorization failed...................%s' % (self))
+            log.info('on connect authorization failed...................%s', self)
 
-        log.info('.....................on connect %s' % (self))
+        log.info('.....................on connect %s', self)
 
         # Proxy connected
         self.connected.callback(self)
 
     def on_disconnect(self, f):
-        log.info('on disconnect................. %s' % (self))
+        log.info('on disconnect................. %s', self)
 
         # Callback when proxy get disconnected from the pool
         f.on_disconnect.addCallback(self.on_disconnect)
@@ -169,4 +169,4 @@ class StratumProxy():
         # Connect miners
         stratum_listener.MiningSubscription.reconnect_all(self)
 
-        log.info('..................on disconnect %s' % (self))
+        log.info('..................on disconnect %s', self)

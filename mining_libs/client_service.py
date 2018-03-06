@@ -69,14 +69,14 @@ class ClientMiningService(GenericEventHandler):
                 ntime,
                 diff)
 
-            log.info("New job %s for prevhash %s, clean_jobs=%s" %
-                     (job.job_id, job.prevhash[:8], clean_jobs))
+            log.info("New job %s for prevhash %s, clean_jobs=%s",
+                     job.job_id, job.prevhash[:8], clean_jobs)
 
             stp.job_registry.add_template(job, clean_jobs)
 
         elif method == 'mining.set_difficulty':
             difficulty = params[0]
-            log.info("Setting new difficulty: %s" % difficulty)
+            log.info("Setting new difficulty: %s", difficulty)
             stratum_listener.DifficultySubscription.on_new_difficulty(
                 stp,
                 difficulty)
@@ -94,7 +94,7 @@ class ClientMiningService(GenericEventHandler):
                 new[0] = hostname
             if port and port > 2:
                 new[1] = port
-            log.info("Reconnecting to %s:%d" % tuple(new))
+            log.info("Reconnecting to %s:%d", new(0), new(1))
             stp.f.reconnect(new[0], new[1], wait)
 
         elif method == 'mining.set_extranonce':
@@ -103,8 +103,8 @@ class ClientMiningService(GenericEventHandler):
                 extranonce1 = params[0]
                 extranonce2_size = params[1]
                 log.info(
-                    "Setting new extranonce: %s/%s" %
-                    (extranonce1, extranonce2_size))
+                    "Setting new extranonce: %s/%s",
+                    extranonce1, extranonce2_size)
             except:
                 log.error(
                     "Wrong extranonce information got from pool, ignoring")
@@ -131,7 +131,7 @@ class ClientMiningService(GenericEventHandler):
         elif method == 'client.show_message':
 
             # Displays message from the server to the terminal
-            log.warning("MESSAGE FROM THE SERVER OPERATOR: %s" % params[0])
+            log.warning("MESSAGE FROM THE SERVER OPERATOR: %s", params[0])
             return True
 
         elif method == 'mining.get_hashrate':
@@ -142,4 +142,4 @@ class ClientMiningService(GenericEventHandler):
 
         else:
             '''Pool just asked us for something which we don't support...'''
-            log.error("Unhandled method %s with params %s" % (method, params))
+            log.error("Unhandled method %s with params %s", method, params)
