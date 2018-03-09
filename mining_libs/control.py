@@ -158,45 +158,21 @@ class StratumControlService(GenericService):
     def list_subscriptions(self):
         log.info("list subscriptions.........")
 
-        c = pubsub.Pubsub.get_subscription_count('mining.set_difficulty')
-        log.info(c)
-
-        l1 = [c]
-        for subs in pubsub.Pubsub.iterate_subscribers('mining.set_difficulty'):
-            s = pubsub.Pubsub.get_subscription(
-                subs.connection_ref(),
-                'mining.set_difficulty',
-                key=None)
-            l1.append([str(s), str(s.stp), str(s.connection_ref())])
-            log.info('%s %s %s', s, s.stp, s.connection_ref())
-
-        c = pubsub.Pubsub.get_subscription_count('mining.notify')
-        log.info(c)
-
-        l2 = [c]
-        for subs in pubsub.Pubsub.iterate_subscribers('mining.notify'):
-            s = pubsub.Pubsub.get_subscription(
-                subs.connection_ref(),
-                'mining.notify',
-                key=None)
-            l2.append([str(s), str(s.stp), str(s.connection_ref())])
-            log.info('%s %s %s', s, s.stp, s.connection_ref())
-
         c = pubsub.Pubsub.get_subscription_count('control.share')
         log.info(c)
 
-        l3 = [c]
+        l = [c]
         for subs in pubsub.Pubsub.iterate_subscribers('control.share'):
             s = pubsub.Pubsub.get_subscription(
                 subs.connection_ref(),
                 'control.share',
                 key=None)
-            l3.append([str(s), str(s.connection_ref())])
+            l.append([str(s), str(s.connection_ref())])
             log.info('%s %s', s, s.connection_ref())
 
         log.info(".........list subscriptions")
 
-        return [l1, l2, l3]
+        return l
 
     def add_blacklist(self, miner_id):
         log.info('add black list %s.............................', miner_id)

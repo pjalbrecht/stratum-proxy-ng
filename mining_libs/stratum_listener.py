@@ -21,41 +21,31 @@ class BlacklistException(ServiceException):
     code = -2
 
 class DifficultySubscription(Subscription):
-    event = 'mining.set_difficulty'
 
     @classmethod
     def on_new_difficulty(cls, stp, new_difficulty):
         stp.job_registry.difficulty = new_difficulty
-        cls.emit(new_difficulty, proxy=stp)
+        Pubsub.emit('mining.set_difficulty' + str(id(stp)), new_difficulty, proxy=stp)
 
     def __init__(self, stp):
-        Subscription.__init__(self)
+        Subscription.__init__(self, 'mining.set_difficulty' + str(id(stp)))
         self.stp = stp
 
     def after_subscribe(self, result):
         self.emit_single(self.stp.job_registry.difficulty, proxy=self.stp)
         return result
 
-    def process(self, *args, **kwargs):
-        session = self.connection_ref().get_session()
-        if session['proxy'] is kwargs['proxy']:
-            return args
-
 class MiningSubscription(Subscription):
-    event = 'mining.notify'
 
     @classmethod
     def reconnect_all(cls, stp):
-        for subs in Pubsub.iterate_subscribers(cls.event):
+        for subs in Pubsub.iterate_subscribers('mining.notify' + str(id(stp))):
             conn = subs.connection_ref()
 
             if conn is None or conn.transport is None:
                 continue
 
-            session = conn.get_session()
-
-            if session['proxy'] is stp:
-               conn.transport.loseConnection()
+            conn.transport.loseConnection()
 
     @classmethod
     def on_template(
@@ -81,7 +71,8 @@ class MiningSubscription(Subscription):
             nbits,
             ntime,
             clean_jobs)
-        cls.emit(
+        Pubsub.emit(
+            'mining.notify' + str(id(stp)),
             job_id,
             prevhash,
             coinb1,
@@ -94,7 +85,7 @@ class MiningSubscription(Subscription):
             proxy=stp)
 
     def __init__(self, stp):
-        Subscription.__init__(self)
+        Subscription.__init__(self, 'mining.notify' + str(id(stp)))
         self.stp = stp
 
     def after_subscribe(self, result):
@@ -125,11 +116,6 @@ class MiningSubscription(Subscription):
             True,
             proxy=self.stp)
         return result
-
-    def process(self, *args, **kwargs):
-        session = self.connection_ref().get_session()
-        if session['proxy'] is kwargs['proxy']:
-            return args
 
 class StratumProxyService(GenericService):
     service_type = 'mining'
