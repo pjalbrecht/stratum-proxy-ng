@@ -25,15 +25,33 @@ class DifficultySubscription(Subscription):
     @classmethod
     def on_new_difficulty(cls, stp, new_difficulty):
         stp.job_registry.difficulty = new_difficulty
-        Pubsub.emit('mining.set_difficulty' + str(id(stp)), new_difficulty, proxy=stp)
+        DifficultySubscription.publish_all(stp, new_difficulty)
 
     def __init__(self, stp):
         Subscription.__init__(self, 'mining.set_difficulty' + str(id(stp)))
         self.stp = stp
 
     def after_subscribe(self, result):
-        self.emit_single(self.stp.job_registry.difficulty, proxy=self.stp)
+        self.publish_one(self.stp.job_registry.difficulty)
         return result
+
+    @classmethod
+    def publish_all(cls, stp, *args):
+        for subs in Pubsub.iterate_subscribers('mining.set_difficulty' + str(id(stp))):
+            conn = subs.connection_ref()
+
+            if conn is None or conn.transport is None:
+                continue
+
+            conn.writeJsonRequest('mining.set_difficulty', args, is_notification=True)
+
+    def publish_one(self, *args):
+        conn = self.connection_ref()
+
+        if conn is None or conn.transport is None:
+           return
+
+        conn.writeJsonRequest('mining.set_difficulty', args, is_notification=True)
 
 class MiningSubscription(Subscription):
 
@@ -46,6 +64,24 @@ class MiningSubscription(Subscription):
                 continue
 
             conn.transport.loseConnection()
+
+    @classmethod
+    def publish_all(cls, stp, *args):
+        for subs in Pubsub.iterate_subscribers('mining.notify' + str(id(stp))):
+            conn = subs.connection_ref()
+
+            if conn is None or conn.transport is None:
+                continue
+
+            conn.writeJsonRequest('mining.notify', args, is_notification=True)
+
+    def publish_one(self, *args):
+        conn = self.connection_ref()
+
+        if conn is None or conn.transport is None:
+           return
+
+        conn.writeJsonRequest('mining.notify', args, is_notification=True)
 
     @classmethod
     def on_template(
@@ -71,8 +107,8 @@ class MiningSubscription(Subscription):
             nbits,
             ntime,
             clean_jobs)
-        Pubsub.emit(
-            'mining.notify' + str(id(stp)),
+        MiningSubscription.publish_all(
+            stp,
             job_id,
             prevhash,
             coinb1,
@@ -81,8 +117,7 @@ class MiningSubscription(Subscription):
             version,
             nbits,
             ntime,
-            clean_jobs,
-            proxy=stp)
+            clean_jobs)
 
     def __init__(self, stp):
         Subscription.__init__(self, 'mining.notify' + str(id(stp)))
@@ -104,7 +139,7 @@ class MiningSubscription(Subscription):
             log.error("Template not ready yet")
             return result
 
-        self.emit_single(
+        self.publish_one(
             job_id,
             prevhash,
             coinb1,
@@ -113,8 +148,7 @@ class MiningSubscription(Subscription):
             version,
             nbits,
             ntime,
-            True,
-            proxy=self.stp)
+            True)
         return result
 
 class StratumProxyService(GenericService):
@@ -159,14 +193,14 @@ class StratumProxyService(GenericService):
         conn.on_disconnect.addCallback(stp.job_registry._drop_tail, tail)
         session['tail'] = tail
 
-        subs1 = Pubsub.subscribe(conn, DifficultySubscription(stp))[0]
-        subs2 = Pubsub.subscribe(conn, MiningSubscription(stp))[0]
+        subs1 = Pubsub.subscribe(conn, DifficultySubscription(stp))[0][1]
+        subs2 = Pubsub.subscribe(conn, MiningSubscription(stp))[0][1]
 
         log.info(
             "Sending subscription to worker: %s/%s connection: %s proxy: %s",
             stp.job_registry.extranonce1 + tail, extranonce2_size, conn, stp)
 
-        defer.returnValue( ((subs1, subs2),) + (stp.job_registry.extranonce1 + tail, extranonce2_size) )
+        defer.returnValue( ((('mining.set_difficulty',subs1), ('mining.notify', subs2)),) + (stp.job_registry.extranonce1 + tail, extranonce2_size) )
 
     @defer.inlineCallbacks
     def submit(
