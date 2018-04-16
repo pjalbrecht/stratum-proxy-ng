@@ -44,7 +44,7 @@ class StratumServer():
             settings.POOL_PASS)
 
         self.f = SocketTransportFactory(
-            debug=False,
+            debug=settings.DEBUG,
             event_handler=ServiceEventHandler)
 
         reactor.addSystemEventTrigger(
@@ -66,7 +66,7 @@ class StratumServer():
 class StratumControl():
     def __init__(self):
         self.f = SocketTransportFactory(
-                     debug=True,
+                     debug=settings.DEBUG,
                      event_handler=ServiceEventHandler)
 
         log.info(
@@ -92,7 +92,7 @@ class StratumProxy():
         self.f = SocketTransportClientFactory(
             host,
             port,
-            debug=True,
+            debug=settings.DEBUG,
             event_handler=client_service.ClientMiningService)
         self.f.on_connect.addCallbacks(self.on_connect, self.on_timeout)
         self.f.on_disconnect.addCallback(self.on_disconnect)
