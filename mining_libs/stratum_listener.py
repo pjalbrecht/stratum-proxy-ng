@@ -233,8 +233,7 @@ class StratumProxyService(GenericService):
 
         worker_name = stp.auth[0]
 
-        job = stp.job_registry.get_job_from_id(job_id)
-        difficulty = job.diff if job is not None else stp.job_registry.difficulty
+        difficulty = stp.job_registry.difficulty
 
         start = time.time()
 

@@ -1,5 +1,4 @@
 from stratum.event_handler import GenericEventHandler
-from jobs import Job
 import version as _version
 import stratum_listener
 
@@ -28,8 +27,6 @@ class ClientMiningService(GenericEventHandler):
              ntime,
              clean_jobs) = params[:9]
 
-            diff = stp.job_registry.difficulty
-
             # print len(str(params)), len(merkle_branch)
             '''
             log.debug("Received new job #%s" % job_id)
@@ -41,7 +38,6 @@ class ClientMiningService(GenericEventHandler):
             log.debug("coinb1 = %s" % coinb1)
             log.debug("coinb2 = %s" % coinb2)
             log.debug("merkle_branch = %s" % merkle_branch)
-            log.debug("difficulty = %s" % diff)
             '''
 
             # Broadcast to Stratum clients
@@ -57,22 +53,8 @@ class ClientMiningService(GenericEventHandler):
                 ntime,
                 clean_jobs)
 
-            # Broadcast to getwork clients
-            job = Job.build_from_broadcast(
-                job_id,
-                prevhash,
-                coinb1,
-                coinb2,
-                merkle_branch,
-                version,
-                nbits,
-                ntime,
-                diff)
-
             log.info("New job %s for prevhash %s, clean_jobs=%s",
-                     job.job_id, job.prevhash[:8], clean_jobs)
-
-            stp.job_registry.add_template(job, clean_jobs)
+                     job_id, prevhash[:8], clean_jobs)
 
         elif method == 'mining.set_difficulty':
             difficulty = params[0]
