@@ -34,7 +34,18 @@ log = stratum.logger.get_logger('proxy')
 class StratumServer():
     pool2proxy = {}
     miner2proxy = {}
+    miner2conn = {}
     stp = None
+
+    @classmethod
+    def on_disconnect(cls, conn):
+        log.info('on disconnect...............................................%s', conn)
+        try:
+            del cls.miner2conn[conn._get_ip()]
+        except KeyError:
+            pass
+
+        return True
 
     def __init__(self):
         StratumServer.stp = StratumProxy(

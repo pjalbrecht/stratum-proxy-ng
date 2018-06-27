@@ -107,16 +107,14 @@ class StratumControlService(GenericService):
 
         stproxy_ng.StratumServer.miner2proxy[miner_id] = stp
 
-        for ref in stratum.connection_registry.ConnectionRegistry.iterate():
-             conn = ref()
+        try:
+            conn = stproxy_ng.StratumServer.miner2conn[miner_id]
+        except KeyError:
+            return True
 
-             if conn is None or conn.transport is None:
-                 continue
-
-             if conn._get_ip() == miner_id:
-                 conn.transport.loseConnection() 
-                 break
-
+        if conn.transport is not None:
+            conn.transport.loseConnection() 
+        
         return True
 
     def list_connections(self):
@@ -151,9 +149,17 @@ class StratumControlService(GenericService):
             l2.append([str(miner_id), str(proxy)])
             log.info('%s %s', miner_id, proxy)
 
+        c = len(stproxy_ng.StratumServer.miner2conn)
+        log.info('miner2conn: %s', c)
+
+        l3 = [c]
+        for miner_id,conn in stproxy_ng.StratumServer.miner2conn.iteritems():
+            l3.append([str(miner_id), str(conn)])
+            log.info('%s %s', miner_id, conn) 
+
         log.info('..........................list tables')
 
-        return [l1, l2]
+        return [l1, l2, l3]
 
     def list_subscriptions(self):
         log.info("list subscriptions.........")

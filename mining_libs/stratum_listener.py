@@ -167,6 +167,9 @@ class StratumProxyService(GenericService):
             log.info('subscribe miner connection lost.............................%s', conn)
             raise SubscribeException("Miner connection lost")
 
+        stproxy_ng.StratumServer.miner2conn[conn._get_ip()] = conn
+        conn.on_disconnect.addCallback(stproxy_ng.StratumServer.on_disconnect)
+
         stp = stproxy_ng.StratumServer.miner2proxy.setdefault(conn._get_ip(), stproxy_ng.StratumServer.stp)
 
         if stp is None:
