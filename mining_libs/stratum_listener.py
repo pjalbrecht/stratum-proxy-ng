@@ -240,6 +240,8 @@ class StratumProxyService(GenericService):
 
         start = time.time()
 
+        session['last_share'] = int(round(start))
+
         try:
             result = (yield stp.f.rpc('mining.submit', [worker_name, job_id, tail + extranonce2, ntime, nonce]))
         except RemoteServiceException as exc:

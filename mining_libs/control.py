@@ -128,38 +128,38 @@ class StratumControlService(GenericService):
 
         log.info(".........list connections")
 
-        return l
+        return [ len(l), l]
 
     def list_tables(self):
         log.info('list tables..........................')
 
-        c = len(stproxy_ng.StratumServer.pool2proxy)
-        log.info('pool2proxy: %s', c)
+        c1 = len(stproxy_ng.StratumServer.pool2proxy)
+        log.info('pool2proxy: %s', c1)
 
-        l1 = [c]
+        l1 = []
         for pool_id,proxy in stproxy_ng.StratumServer.pool2proxy.iteritems():
             l1.append([str(pool_id), str(proxy)])
             log.info('%s %s', pool_id, proxy)
 
-        c = len(stproxy_ng.StratumServer.miner2proxy)
-        log.info('miner2proxy: %s', c)
+        c2 = len(stproxy_ng.StratumServer.miner2proxy)
+        log.info('miner2proxy: %s', c2)
 
-        l2 = [c]
+        l2 = []
         for miner_id,proxy in stproxy_ng.StratumServer.miner2proxy.iteritems():
             l2.append([str(miner_id), str(proxy)])
             log.info('%s %s', miner_id, proxy)
 
-        c = len(stproxy_ng.StratumServer.miner2conn)
-        log.info('miner2conn: %s', c)
+        c3 = len(stproxy_ng.StratumServer.miner2conn)
+        log.info('miner2conn: %s', c3)
 
-        l3 = [c]
+        l3 = []
         for miner_id,conn in stproxy_ng.StratumServer.miner2conn.iteritems():
             l3.append([str(miner_id), str(conn)])
             log.info('%s %s', miner_id, conn) 
 
         log.info('..........................list tables')
 
-        return [l1, l2, l3]
+        return [[c1,l1], [c2,l2], [c3,l3]]
 
     def list_subscriptions(self):
         log.info("list subscriptions.........")
@@ -167,7 +167,7 @@ class StratumControlService(GenericService):
         c = pubsub.Pubsub.get_subscription_count('control.share')
         log.info(c)
 
-        l = [c]
+        l = []
         for subs in pubsub.Pubsub.iterate_subscribers('control.share'):
             s = pubsub.Pubsub.get_subscription(
                 subs.connection_ref(),
@@ -178,7 +178,24 @@ class StratumControlService(GenericService):
 
         log.info(".........list subscriptions")
 
-        return l
+        return [c, l]
+
+    def list_miners(self):
+        log.info("list miners................")
+
+        c = len(stproxy_ng.StratumServer.miner2conn)
+        log.info('miner2conn: %s', c)
+
+        l = []
+        for miner_id,conn in stproxy_ng.StratumServer.miner2conn.iteritems():
+            session = conn.get_session()
+            last = session.get('last_share', 0)
+            l.append([str(miner_id), last])
+            log.info('%s %s', miner_id, last)
+
+        log.info("................list miners")
+
+        return [c, l]
 
     def add_blacklist(self, miner_id):
         log.info('add black list %s.............................', miner_id)
