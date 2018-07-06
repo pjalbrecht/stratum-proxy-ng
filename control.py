@@ -17,6 +17,8 @@ if sys.argv[2] == 'createpool':
     msg = {'id': 1, 'method': 'control.' + 'create_pool', 'params': [ d['host'], d['port'], d['user'], d['pass'] ]}
 elif sys.argv[2] == 'connectpool':
     msg = {'id': 1, 'method': 'control.' + 'connect_pool', 'params': [ int(d['pool']), d['miner'] ]}
+elif sys.argv[2] == 'reconnectminer':
+    msg = {'id': 1, 'method': 'control.' + 'reconnect_miner', 'params': [ d['miner'], int(d['immediate']) ]}
 elif sys.argv[2] == 'deletepool':
     msg = {'id': 1, 'method': 'control.' + 'delete_pool', 'params': [ int(d['pool']) ]}
 elif sys.argv[2] == 'defaultpool':

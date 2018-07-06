@@ -14,6 +14,9 @@ log = stratum.logger.get_logger('proxy')
 class ConnectPoolException(ServiceException):
     code = -2
 
+class ReconnectMinerException(ServiceException):
+    code = -2
+
 class ShareSubscription(pubsub.Subscription):
     event = 'control.share'
 
@@ -117,6 +120,26 @@ class StratumControlService(GenericService):
         
         return True
 
+    def reconnect_miner(self, miner_id, immediate):
+        log.info('reconnect miner.............%s %s', miner_id, immediate)
+
+        if miner_id not in stproxy_ng.StratumServer.miner2proxy:
+            log.info('reconnect miner.......invalid miner id: %s', miner_id)
+            raise ReconnectMinerException('Reconnect miner--Invalid miner!')
+
+        try:
+            conn = stproxy_ng.StratumServer.miner2conn[miner_id]
+        except KeyError:
+            return True
+
+        if conn.transport is not None:
+            if not immediate:
+                conn.transport.loseConnection() 
+            else:
+                conn.transport.abortConnection() 
+        
+        return True
+
     def list_connections(self):
         log.info("list connections.........")
 
@@ -205,15 +228,13 @@ class StratumControlService(GenericService):
 
         stproxy_ng.StratumServer.miner2proxy[miner_id] = None
 
-        for ref in stratum.connection_registry.ConnectionRegistry.iterate():
-             conn = ref()
+        try:
+            conn = stproxy_ng.StratumServer.miner2conn[miner_id]
+        except KeyError:
+            return True
 
-             if conn is None or conn.transport is None:
-                 continue
-
-             if conn._get_ip() == miner_id:
-                 conn.transport.loseConnection() 
-                 break
+        if conn.transport is not None:
+            conn.transport.loseConnection() 
 
         log.info('.............................add black list')
         return True
