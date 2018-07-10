@@ -39,11 +39,10 @@ class StratumServer():
 
     @classmethod
     def on_disconnect(cls, conn):
-        log.info('on disconnect...............................................%s', conn)
-        try:
+        log.info('on disconnect...............%s %s', conn._get_ip(), conn)
+        if conn._get_ip() in cls.miner2conn and conn is cls.miner2conn[conn._get_ip()]:
+            log.info('on disconnect......delete %s', cls.miner2conn[conn._get_ip()])
             del cls.miner2conn[conn._get_ip()]
-        except KeyError:
-            pass
 
         return True
 
