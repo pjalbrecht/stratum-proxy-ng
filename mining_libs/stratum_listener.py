@@ -191,6 +191,8 @@ class StratumProxyService(GenericService):
         session = conn.get_session()
         session['proxy'] = stp
 
+        session['subscribed'] = int(round(time.time()))
+
         (tail, extranonce2_size) = stp.job_registry._get_unused_tail()
         # Remove extranonce from registry when client disconnect
         conn.on_disconnect.addCallback(stp.job_registry._drop_tail, tail)

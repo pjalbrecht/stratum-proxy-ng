@@ -213,8 +213,9 @@ class StratumControlService(GenericService):
         for miner_id,conn in stproxy_ng.StratumServer.miner2conn.iteritems():
             session = conn.get_session()
             last = session.get('last_share', 0)
-            l.append([str(miner_id), last])
-            log.info('%s %s', miner_id, last)
+            start = session.get('subscribed', 0)
+            l.append([str(miner_id), start, last])
+            log.info('%s %s %s', miner_id, start, last)
 
         log.info("................list miners")
 
