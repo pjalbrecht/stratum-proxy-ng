@@ -214,8 +214,10 @@ class StratumControlService(GenericService):
             session = conn.get_session()
             last = session.get('last_share', 0)
             start = session.get('subscribed', 0)
-            l.append([str(miner_id), start, last])
-            log.info('%s %s %s', miner_id, start, last)
+            proxy = session.get('proxy')
+            pool_id = id(proxy.f) if proxy is not None else 0
+            l.append([str(miner_id), pool_id, start, last])
+            log.info('%s %s %s %s', miner_id, pool_id, start, last)
 
         log.info("................list miners")
 
