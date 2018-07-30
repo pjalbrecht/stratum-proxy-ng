@@ -223,6 +223,22 @@ class StratumControlService(GenericService):
 
         return [c, l]
 
+    def list_pools(self):
+        log.info("list pools.................")
+
+        c = len(stproxy_ng.StratumServer.pool2proxy)
+        log.info('pool2proxy: %s', c)
+
+        l = []
+        for pool_id, proxy in stproxy_ng.StratumServer.pool2proxy.iteritems():
+            peer = proxy.f.client._get_ip()
+            l.append([pool_id, peer])
+            log.info('%s %s', pool_id, peer)
+
+        log.info(".................list pools")
+
+        return [c, l]
+
     def add_blacklist(self, miner_id):
         log.info('add black list %s.............................', miner_id)
 

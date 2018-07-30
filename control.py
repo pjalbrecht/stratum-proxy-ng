@@ -31,6 +31,8 @@ elif sys.argv[2] == 'listsubscriptions':
     msg = {'id': 1, 'method': 'control.' + 'list_subscriptions', 'params': []}
 elif sys.argv[2] == 'listminers':
     msg = {'id': 1, 'method': 'control.' + 'list_miners', 'params': []}
+elif sys.argv[2] == 'listpools':
+    msg = {'id': 1, 'method': 'control.' + 'list_pools', 'params': []}
 elif sys.argv[2] == 'addblacklist':
     msg = {'id': 1, 'method': 'control.' + 'add_blacklist', 'params': [ d['miner'] ]}
 elif sys.argv[2] == 'deleteblacklist':
