@@ -17,12 +17,15 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import weakref
+
 from twisted.internet import reactor, defer
 from stratum.socket_transport import SocketTransportFactory, SocketTransportClientFactory
 
 from stratum import settings
 from stratum.services import ServiceEventHandler
 from stratum.protocol import ClientProtocol
+
 from mining_libs import stratum_listener
 from mining_libs import client_service
 from mining_libs import jobs
@@ -34,17 +37,8 @@ log = stratum.logger.get_logger('proxy')
 class StratumServer():
     pool2proxy = {}
     miner2proxy = {}
-    miner2conn = {}
+    miner2conn = weakref.WeakValueDictionary()
     stp = None
-
-    @classmethod
-    def on_disconnect(cls, conn):
-        log.info('on disconnect...............%s %s', conn._get_ip(), conn)
-        if conn._get_ip() in cls.miner2conn and conn is cls.miner2conn[conn._get_ip()]:
-            log.info('on disconnect......delete %s', cls.miner2conn[conn._get_ip()])
-            del cls.miner2conn[conn._get_ip()]
-
-        return True
 
     def __init__(self):
         StratumServer.stp = StratumProxy(
