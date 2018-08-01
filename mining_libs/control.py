@@ -1,4 +1,5 @@
 from twisted.internet import defer
+from stratum import settings
 from stratum.services import GenericService
 import stratum.pubsub as pubsub
 import stratum.connection_registry
@@ -143,15 +144,23 @@ class StratumControlService(GenericService):
     def list_connections(self):
         log.info("list connections.........")
 
-        l = []
+        l1 = []
+        l2 = []
+        l3 = []
         for ref in stratum.connection_registry.ConnectionRegistry.iterate():
             conn = ref()
-            l.append([str(conn), str(conn.get_ident())])
-            log.info('connection -> %s ident -> %s', conn, conn.get_ident())
+            log.info('connection -> %s peer -> %s', conn, conn._get_ip())
+
+            if isinstance(conn, stratum.protocol.ClientProtocol): 
+                l1.append([str(conn), id(conn.factory)])
+            elif settings.STRATUM_PORT == conn.transport.getHost().port:
+                l2.append([str(conn), conn._get_ip()])
+            else:
+                l3.append([str(conn), conn._get_ip()])
 
         log.info(".........list connections")
 
-        return [ len(l), l]
+        return [[len(l1), l1], [len(l2), l2], [len(l3), l3]]
 
     def list_tables(self):
         log.info('list tables..........................')
