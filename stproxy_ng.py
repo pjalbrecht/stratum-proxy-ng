@@ -17,6 +17,7 @@
 	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import time
 import weakref
 
 from twisted.internet import reactor, defer
@@ -37,7 +38,6 @@ log = stratum.logger.get_logger('proxy')
 class StratumServer():
     pool2proxy = {}
     miner2proxy = {}
-    miner2conn = weakref.WeakValueDictionary()
     stp = None
 
     def __init__(self):
@@ -92,6 +92,7 @@ class StratumProxy():
         self.job_registry = jobs.JobRegistry()
         self.auth = (user, passw)
         self.connected = defer.Deferred()
+        self.subscribed = 0
         self.authorized = False
         self.f = SocketTransportClientFactory(
             host,
@@ -132,6 +133,8 @@ class StratumProxy():
         except Exception as e:
             log.info('on connect subscription failed..................%s %s', e, self)
             return
+
+        self.subscribed = int(round(time.time()))
 
         # Set extranonce
         if self.use_set_extranonce:

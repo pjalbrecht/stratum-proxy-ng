@@ -167,8 +167,6 @@ class StratumProxyService(GenericService):
             log.info('subscribe miner connection lost.............................%s', conn)
             raise SubscribeException("Miner connection lost")
 
-        stproxy_ng.StratumServer.miner2conn[conn._get_ip()] = conn
-
         stp = stproxy_ng.StratumServer.miner2proxy.setdefault(conn._get_ip(), stproxy_ng.StratumServer.stp)
 
         if stp is None:
@@ -191,6 +189,8 @@ class StratumProxyService(GenericService):
         session['proxy'] = stp
 
         session['subscribed'] = int(round(time.time()))
+
+        session['shares_sent'] = 0
 
         (tail, extranonce2_size) = stp.job_registry._get_unused_tail()
         # Remove extranonce from registry when client disconnect
@@ -242,6 +242,8 @@ class StratumProxyService(GenericService):
         start = time.time()
 
         session['last_share'] = int(round(start))
+
+        session['shares_sent'] += 1
 
         try:
             result = (yield stp.f.rpc('mining.submit', [worker_name, job_id, tail + extranonce2, ntime, nonce]))

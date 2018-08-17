@@ -111,14 +111,15 @@ class StratumControlService(GenericService):
 
         stproxy_ng.StratumServer.miner2proxy[miner_id] = stp
 
-        try:
-            conn = stproxy_ng.StratumServer.miner2conn[miner_id]
-        except KeyError:
-            return True
+        for ref in stratum.connection_registry.ConnectionRegistry.iterate():
+             conn = ref()
 
-        if conn.transport is not None:
-            conn.transport.loseConnection() 
-        
+             if conn is None or conn.transport is None:
+                 continue
+
+             if conn._get_ip() == miner_id:
+                 conn.transport.loseConnection()
+
         return True
 
     def reconnect_miner(self, miner_id, immediate):
@@ -128,17 +129,18 @@ class StratumControlService(GenericService):
             log.info('reconnect miner.......invalid miner id: %s', miner_id)
             raise ReconnectMinerException('Reconnect miner--Invalid miner!')
 
-        try:
-            conn = stproxy_ng.StratumServer.miner2conn[miner_id]
-        except KeyError:
-            return True
+        for ref in stratum.connection_registry.ConnectionRegistry.iterate():
+             conn = ref()
 
-        if conn.transport is not None:
-            if not immediate:
-                conn.transport.loseConnection() 
-            else:
-                conn.transport.abortConnection() 
-        
+             if conn is None or conn.transport is None:
+                 continue
+
+             if conn._get_ip() == miner_id:
+                 if not immediate:
+                     conn.transport.loseConnection()
+                 else:
+                     conn.transport.abortConnection()
+
         return True
 
     def list_connections(self):
@@ -181,17 +183,9 @@ class StratumControlService(GenericService):
             l2.append([str(miner_id), str(proxy)])
             log.info('%s %s', miner_id, proxy)
 
-        c3 = len(stproxy_ng.StratumServer.miner2conn)
-        log.info('miner2conn: %s', c3)
-
-        l3 = []
-        for miner_id,conn in stproxy_ng.StratumServer.miner2conn.iteritems():
-            l3.append([str(miner_id), str(conn)])
-            log.info('%s %s', miner_id, conn) 
-
         log.info('..........................list tables')
 
-        return [[c1,l1], [c2,l2], [c3,l3]]
+        return [[c1,l1], [c2,l2]]
 
     def list_subscriptions(self):
         log.info("list subscriptions.........")
@@ -215,34 +209,54 @@ class StratumControlService(GenericService):
     def list_miners(self):
         log.info("list miners................")
 
-        c = len(stproxy_ng.StratumServer.miner2conn)
-        log.info('miner2conn: %s', c)
-
         l = []
-        for miner_id,conn in stproxy_ng.StratumServer.miner2conn.iteritems():
+        for ref in stratum.connection_registry.ConnectionRegistry.iterate():
+            conn = ref()
+            if (conn is None or
+                conn.transport is None or
+                settings.STRATUM_PORT != conn.transport.getHost().port):
+                continue
+            miner_id = conn._get_ip()
             session = conn.get_session()
             last = session.get('last_share', 0)
             start = session.get('subscribed', 0)
+            shares = session.get('shares_sent', 0)
             proxy = session.get('proxy')
             pool_id = id(proxy.f) if proxy is not None else 0
-            l.append([str(miner_id), pool_id, start, last])
-            log.info('%s %s %s %s', miner_id, pool_id, start, last)
+            difficulty = proxy.job_registry.difficulty if proxy is not None else 0
+            l.append([str(miner_id),
+                      pool_id,
+                      difficulty,
+                      start,
+                      last,
+                      shares])
+            log.info('%s %s %s %s %s %s', miner_id, pool_id, difficulty, start, last, shares)
 
         log.info("................list miners")
 
-        return [c, l]
+        return [len(l), l]
 
     def list_pools(self):
         log.info("list pools.................")
 
-        c = len(stproxy_ng.StratumServer.pool2proxy)
-        log.info('pool2proxy: %s', c)
-
         l = []
-        for pool_id, proxy in stproxy_ng.StratumServer.pool2proxy.iteritems():
-            if proxy.f.client is not None:
-                l.append(pool_id)
-                log.info('%s', pool_id)
+        for ref in stratum.connection_registry.ConnectionRegistry.iterate():
+            conn = ref()
+            if (conn is None or
+                conn.transport is None or
+                not isinstance(conn, stratum.protocol.ClientProtocol)):
+                continue
+            pool_id = id(conn.factory)
+            stp = stproxy_ng.StratumServer.pool2proxy[pool_id]
+            ntime = stp.last_broadcast[7] if stp.last_broadcast is not None else 0
+            l.append([pool_id,
+                      conn.transport.getHost().port,
+                      conn.transport.getPeer().host,
+                      conn.transport.getPeer().port,
+                      stp.subscribed,
+                      stp.job_registry.difficulty,
+                      int(ntime, 16)])
+            log.info('%s', pool_id)
 
         log.info(".................list pools")
 
@@ -256,13 +270,14 @@ class StratumControlService(GenericService):
 
         stproxy_ng.StratumServer.miner2proxy[miner_id] = None
 
-        try:
-            conn = stproxy_ng.StratumServer.miner2conn[miner_id]
-        except KeyError:
-            return True
+        for ref in stratum.connection_registry.ConnectionRegistry.iterate():
+             conn = ref()
 
-        if conn.transport is not None:
-            conn.transport.loseConnection() 
+             if conn is None or conn.transport is None:
+                 continue
+
+             if conn._get_ip() == miner_id:
+                 conn.transport.loseConnection()
 
         log.info('.............................add black list')
         return True
