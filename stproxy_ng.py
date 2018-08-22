@@ -177,3 +177,19 @@ class StratumProxy():
         stratum_listener.MiningSubscription.reconnect_all(self)
 
         log.info('..................on disconnect %s', self)
+
+    def miner_disconnect(self, c, m):
+        log.info('miner disconnect................. %s', self)
+
+        log.info('%s %s %s', self, c, m)
+
+        session = c.get_session()
+        last = session.get('last_share', 0)
+        start = session.get('subscribed', 0)
+        shares = session.get('shares_sent', 0)
+
+        duration = int(round(time.time())) - start if start != 0 else 0
+
+        control.MinerDisconnectSubscription.emit(m, id(self.f), start, duration, last, shares)
+
+        log.info('..................miner disconnect %s', self)

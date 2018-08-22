@@ -183,6 +183,7 @@ class StratumProxyService(GenericService):
             log.info('subscribe miner connection lost.............................%s %s', conn, stp)
             raise SubscribeException("Miner connection lost")
 
+        conn.on_disconnect.addCallback(stp.miner_disconnect, conn._get_ip())
         MinerConnectSubscription.emit(conn._get_ip(), id(stp.f))
 
         session = conn.get_session()

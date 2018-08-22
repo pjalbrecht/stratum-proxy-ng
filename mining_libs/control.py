@@ -55,6 +55,9 @@ class MinerConnectSubscription(pubsub.Subscription):
 
         return result
 
+class MinerDisconnectSubscription(pubsub.Subscription):
+    event = 'control.miner_disconnect'
+
 class StratumControlService(GenericService):
     service_type = 'control'
     service_vendor = 'mining_proxy'
@@ -311,6 +314,10 @@ class StratumControlService(GenericService):
     @pubsub.subscribe
     def subscribe_minerconnect(self):
         return MinerConnectSubscription()
+
+    @pubsub.subscribe
+    def subscribe_minerdisconnect(self):
+        return MinerDisconnectSubscription()
 
     @pubsub.unsubscribe
     def unsubscribe(self, subscription_key):
